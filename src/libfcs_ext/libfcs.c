@@ -15,6 +15,25 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
     FCSFile* fcs = load_FCS(filename);
 
     printf("Loaded FCS file with %zd parameters and %zd events\n", fcs->compensated.n_parameters, fcs->compensated.n_events);
+    printf("\tmode=%d\n\tdatatype=%d\n", fcs->metadata.mode, fcs->metadata.datatype);
+    // Print the parameters
+    printf("\tParameters:\n");
+    for (int i = 0; i < fcs->metadata.n_parameters; ++i) {
+        printf("\t\t%.*s",
+                fcs->metadata.parameters[i].short_name.length,
+                fcs->metadata.parameters[i].short_name.buffer
+        );
+    }
+    printf("\n");
+    // Print the first five events
+    printf("\tEvents:\n");
+    for (int i = 0; i < 5; ++i) {
+        printf("\t");
+        for (int j = 0; j < fcs->compensated.n_parameters; ++j) {
+            printf("\t%.2e", fcs->compensated.data[(i * fcs->compensated.n_parameters) + j]);
+        }
+        printf("\n");
+    }
 
     Py_DECREF(filename_bytes);
     Py_RETURN_NONE;

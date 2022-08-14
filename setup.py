@@ -6,7 +6,7 @@ from pathlib import Path
 with open("README.md" ,"r", encoding='utf8') as fh:
     long_description = fh.read()
 
-subprocess.run(['ghcup', 'run', '--stack', '2.7.5', '--', 'stack', 'build'], cwd=Path('src/libfcs_ext/hs_submodule'))
+subprocess.run(['ghcup', 'run', '--stack', '2.7.5', '--', 'stack', 'build', '--force-dirty'], cwd=Path('src/libfcs_ext/hs_submodule'))
 # Locate the library and include directories
 built_dynamic_libraries = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/*.dll'))
 built_helper_a = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/*.dll.a'))
