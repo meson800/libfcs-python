@@ -2,6 +2,7 @@
 #include <Python.h>
 #include <fcs.h>
 
+
 static PyObject* loadFCS(PyObject *self, PyObject *args) {
     PyObject* filename_bytes;
     char* filename;
@@ -19,12 +20,18 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
     // Print the parameters
     printf("\tParameters:\n");
     for (int i = 0; i < fcs->metadata.n_parameters; ++i) {
-        printf("\t\t%.*s",
+        printf("\t\t- %.*s",
                 fcs->metadata.parameters[i].short_name.length,
                 fcs->metadata.parameters[i].short_name.buffer
         );
+        if (fcs->metadata.parameters[i].name.present) {
+            printf(" (%.*s)", 
+                    fcs->metadata.parameters[i].name.string.length,
+                    fcs->metadata.parameters[i].name.string.buffer
+            );
+        }
+        printf("\n");
     }
-    printf("\n");
     // Print the first five events
     printf("\tEvents:\n");
     for (int i = 0; i < 5; ++i) {

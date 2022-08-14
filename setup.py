@@ -1,6 +1,7 @@
 from setuptools import setup, Extension
 import subprocess
 import sys
+import shutil
 from pathlib import Path
 
 with open("README.md" ,"r", encoding='utf8') as fh:
@@ -10,6 +11,8 @@ subprocess.run(['ghcup', 'run', '--stack', '2.7.5', '--', 'stack', 'build', '--f
 # Locate the library and include directories
 built_dynamic_libraries = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/*.dll'))
 built_helper_a = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/*.dll.a'))
+for helper_a in built_helper_a:
+    shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
 header_files = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/fcs.h'))
 print(built_dynamic_libraries)
 print(header_files)
