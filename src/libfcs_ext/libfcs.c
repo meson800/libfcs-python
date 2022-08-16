@@ -16,6 +16,12 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
     FCSFile* fcs = load_FCS(filename);
 
     printf("Loaded FCS file with %zd parameters and %zd events\n", fcs->compensated.n_parameters, fcs->compensated.n_events);
+    if (fcs->metadata.comment.present) {
+        printf("\t%.*s\n",
+                fcs->metadata.comment.string.length,
+                fcs->metadata.comment.string.buffer
+        );
+    }
     printf("\tmode=%d\n\tdatatype=%d\n", fcs->metadata.mode, fcs->metadata.datatype);
     // Print the parameters
     printf("\tParameters:\n");
