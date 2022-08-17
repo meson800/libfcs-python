@@ -15,7 +15,7 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
     PyBytes_AsStringAndSize(filename_bytes, &filename, &filename_len);
     FCSFile* fcs = load_FCS(filename);
 
-    printf("Loaded FCS file with %zd parameters and %zd events\n", fcs->compensated.n_parameters, fcs->compensated.n_events);
+    printf("Loaded FCS file with %zd parameters and %zd events\n", fcs->compensated.n_cols, fcs->compensated.n_rows);
     if (fcs->metadata.comment.present) {
         printf("\t%.*s\n",
                 fcs->metadata.comment.string.length,
@@ -24,7 +24,7 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
     }
     printf("\tmode=%d\n\tdatatype=%d\n", fcs->metadata.mode, fcs->metadata.datatype);
     // Print the parameters
-    printf("\tParameters:\n");
+    puts("\tParameters:");
     for (int i = 0; i < fcs->metadata.n_parameters; ++i) {
         printf("\t\t- %.*s",
                 fcs->metadata.parameters[i].short_name.length,
@@ -36,16 +36,28 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
                     fcs->metadata.parameters[i].name.string.buffer
             );
         }
-        printf("\n");
+        puts("");
     }
     // Print the first five events
-    printf("\tEvents:\n");
+    puts("\tEvents:\n");
     for (int i = 0; i < 5; ++i) {
-        printf("\t");
-        for (int j = 0; j < fcs->compensated.n_parameters; ++j) {
-            printf("\t%.2e", fcs->compensated.data[(i * fcs->compensated.n_parameters) + j]);
+        printf("%s", "\t");
+        for (int j = 0; j < fcs->compensated.n_cols; ++j) {
+            printf("\t%.2e", fcs->compensated.data[(i * fcs->compensated.n_cols) + j]);
         }
-        printf("\n");
+        printf("%s", "\n");
+    }
+
+    // Print extra keyvals
+
+    printf("\n\t%d extra keyvals:\n", fcs->metadata.extra_keyvals.n_vals);
+    for (int i = 0; i < fcs->metadata.extra_keyvals.n_vals; ++i) {
+        printf("\t\t%.*s: %.*s\n",
+            fcs->metadata.extra_keyvals.items[i].key.length,
+            fcs->metadata.extra_keyvals.items[i].key.buffer,
+            fcs->metadata.extra_keyvals.items[i].value.length,
+            fcs->metadata.extra_keyvals.items[i].value.buffer
+        );
     }
 
     Py_DECREF(filename_bytes);
