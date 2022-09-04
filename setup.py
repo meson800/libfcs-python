@@ -4,6 +4,8 @@ import sys
 import shutil
 from pathlib import Path
 
+import numpy
+
 with open("README.md" ,"r", encoding='utf8') as fh:
     long_description = fh.read()
 
@@ -24,7 +26,7 @@ libfcs_ext = Extension(
     #runtime_library_dirs=['src/libfcs_ext/libfcs/.stack-work/install/47bedf8b/lib'],
     libraries=[str(x.name) for x in built_helper_a],
     library_dirs=[str(x.parent) for x in built_helper_a],
-    include_dirs=[str(header_files[0].parent)]
+    include_dirs=[str(header_files[0].parent), numpy.get_include()]
 )
 
 setup(
@@ -52,5 +54,8 @@ setup(
         "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
         "Operating System :: OS Independent",
         ],
-    python_requires='>=3'
+    python_requires='>=3',
+    install_requires=[
+        "numpy"
+    ]
 )
