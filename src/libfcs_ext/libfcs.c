@@ -347,6 +347,32 @@ static void double_flog(char **args, const npy_intp *dimensions, const npy_intp 
 PyUFuncGenericFunction flog_func[1] = {&double_flog};
 static char flog_types[4] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
 
+static void double_fasinh(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_M = args[2], *in_A = args[3];
+    char *out = args[4];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_M_step = steps[2], in_A_step = steps[3];
+    npy_intp out_step = steps[4];
+
+    double ln_10 = log(10.0);
+
+    for (npy_intp i = 0; i < n; ++i) {
+        TO_D(out) = (
+            asinh(TO_D(in) * sinh(TO_D(in_M) * ln_10) / TO_D(in_T))
+            + TO_D(in_A) * ln_10
+        ) / (ln_10 * (TO_D(in_M) + TO_D(in_A)));
+
+        in += in_step;
+        in_T += in_T_step;
+        in_M += in_M_step;
+        in_A += in_A_step;
+        out += out_step;
+    }
+}
+PyUFuncGenericFunction fasinh_func[1] = {&double_fasinh};
+static char fasinh_types[5] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
 static PyMethodDef FCSMethods[] = {
     {"loadFCS", loadFCS, METH_VARARGS, "Loads an FCS file"},
     {NULL, NULL, 0, NULL}
@@ -401,6 +427,13 @@ PyInit__libfcs_ext(void)
                                                  "flog_docstring", 0);
         PyDict_SetItemString(d, "flog", flog);
         Py_DECREF(flog);
+
+        // tunable asinh
+        PyObject *fasinh = PyUFunc_FromFuncAndData(fasinh_func, NULL, fasinh_types, 1, 4, 1,
+                                                 PyUFunc_None, "fasinh",
+                                                 "fasinh_docstring", 0);
+        PyDict_SetItemString(d, "fasinh", fasinh);
+        Py_DECREF(fasinh);
 
         return module;
     }

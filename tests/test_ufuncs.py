@@ -41,3 +41,23 @@ def test_flog():
     ])
     print(_libfcs_ext.flog(x,T,M))
     np.testing.assert_allclose(_libfcs_ext.flog(x, T, M), expected, rtol=2e-5)
+
+def test_fasinh():
+    x = np.array([-10, -5, -1, 0, 0.3, 1, 3, 10, 100, 1000]).reshape((10,1))
+    T = np.array([1000, 1000, 1000]).reshape((1,3))
+    M = np.array([4, 5, 3]).reshape((1,3))
+    A = np.array([1, 0, 2]).reshape((1,3))
+    expected = np.array([
+        [-0.200009, -0.6, 0.199144],
+        [-0.139829, -0.539794, 0.256923],
+        [-0.00085584, -0.400009, 0.358203],
+        [0.2, 0, 0.4],
+        [0.303776, 0.295521, 0.412980],
+        [0.400856, 0.400009, 0.441797],
+        [0.495521, 0.495425, 0.503776],
+        [0.600009, 0.6, 0.600856],
+        [0.8, 0.8, 0.800009],
+        [1, 1, 1]
+    ])
+    print(_libfcs_ext.fasinh(x,T,M,A))
+    np.testing.assert_allclose(_libfcs_ext.fasinh(x, T, M, A), expected, rtol=2e-5)
