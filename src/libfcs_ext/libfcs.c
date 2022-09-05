@@ -4,6 +4,7 @@
 #include "numpy/npy_common.h"
 #include "numpy/ndarrayobject.h"
 #include "numpy/arrayobject.h"
+#include "numpy/ufuncobject.h"
 
 #include <fcs.h>
 
@@ -38,11 +39,8 @@ static PyObject * FCSObject_new(PyTypeObject *type, PyObject *args, PyObject *kw
 }
 
 static void FCSObject_dealloc(FCSObject *self) {
-    puts("About to dealloc FCS file");
     free_FCS(self->file);
-    puts("About to dealloc FCS file Python object");
     Py_TYPE(self)->tp_free((PyObject *)self);
-    puts("Done deallocing");
 }
 
 static PyObject* FCSObject_get_n_events_aborted(FCSObject *self, void *_closure) {
@@ -147,14 +145,10 @@ static PyObject* FCSObject_get_well_id(FCSObject *self, void *_closure) {
 
 static PyObject* FCSObject_get_uncompensated(FCSObject *self, void *_closure) {
     npy_intp dimensions[2] = {self->file->uncompensated.n_rows, self->file->uncompensated.n_cols};
-    printf("About to create numpy array with dims (%d x %d)\n", dimensions[0], dimensions[1]);
-    printf("First entry: %f, last entry: %f\n", self->file->uncompensated.data[0], self->file->uncompensated.data[dimensions[0] * dimensions[1] - 1]);
     PyObject* np_array = PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->uncompensated.data);
-    puts("Checking array for null");
     if (np_array == NULL) {
         return NULL;
     }
-    puts("About to set PyArray base object");
     Py_INCREF(self);
     if (PyArray_SetBaseObject(np_array, self) != 0) {
         Py_DECREF(self);
@@ -304,6 +298,29 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
+/************** ufuncs for fast Numpy processing *******************/
+#define TO_D(x) (*((double*)x))
+static void double_flin(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_A = args[2];
+    char *out = args[3];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_A_step = steps[2];
+    npy_intp out_step = steps[3];
+
+    for (npy_intp i = 0; i < n; ++i) {
+        TO_D(out) = (TO_D(in) + TO_D(in_A)) / (TO_D(in_T) + TO_D(in_A));
+
+        in += in_step;
+        in_T += in_T_step;
+        in_A += in_A_step;
+        out += out_step;
+    }
+}
+
+PyUFuncGenericFunction flin_func[1] = {&double_flin};
+static char flin_types[4] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
 static PyMethodDef FCSMethods[] = {
     {"loadFCS", loadFCS, METH_VARARGS, "Loads an FCS file"},
     {NULL, NULL, 0, NULL}
@@ -334,6 +351,7 @@ PyInit__libfcs_ext(void)
 
         // Init the numpy functions
         import_array();
+        import_umath();
 
         // Init the FCS type
         Py_INCREF(&FCSType);
@@ -342,6 +360,15 @@ PyInit__libfcs_ext(void)
             Py_DECREF(module);
             return NULL;
         }
+
+        // Init the Numpy ufuncs
+        PyObject *flin = PyUFunc_FromFuncAndData(flin_func, NULL, flin_types, 1, 3, 1,
+                                                 PyUFunc_None, "flin",
+                                                 "flin_docstring", 0);
+        
+        PyObject *d = PyModule_GetDict(module);
+        PyDict_SetItemString(d, "flin", flin);
+        Py_DECREF(flin);
 
         return module;
     }
