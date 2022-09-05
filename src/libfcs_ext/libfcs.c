@@ -1,5 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <math.h>
+
 #include <Python.h>
 #include "numpy/npy_common.h"
 #include "numpy/ndarrayobject.h"
@@ -317,9 +319,33 @@ static void double_flin(char **args, const npy_intp *dimensions, const npy_intp 
         out += out_step;
     }
 }
-
 PyUFuncGenericFunction flin_func[1] = {&double_flin};
 static char flin_types[4] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
+static void double_flog(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_M = args[2];
+    char *out = args[3];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_M_step = steps[2];
+    npy_intp out_step = steps[3];
+
+    for (npy_intp i = 0; i < n; ++i) {
+        // Check for out of bounds (x <= 0) and return NaN
+        if (TO_D(in) <= 0) {
+            TO_D(out) = NPY_NAN;
+        } else {
+            TO_D(out) = 1 + log10(TO_D(in) / TO_D(in_T)) / TO_D(in_M);
+        }
+
+        in += in_step;
+        in_T += in_T_step;
+        in_M += in_M_step;
+        out += out_step;
+    }
+}
+PyUFuncGenericFunction flog_func[1] = {&double_flog};
+static char flog_types[4] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
 
 static PyMethodDef FCSMethods[] = {
     {"loadFCS", loadFCS, METH_VARARGS, "Loads an FCS file"},
@@ -362,13 +388,19 @@ PyInit__libfcs_ext(void)
         }
 
         // Init the Numpy ufuncs
+        PyObject *d = PyModule_GetDict(module);
+        // tunable linear
         PyObject *flin = PyUFunc_FromFuncAndData(flin_func, NULL, flin_types, 1, 3, 1,
                                                  PyUFunc_None, "flin",
                                                  "flin_docstring", 0);
-        
-        PyObject *d = PyModule_GetDict(module);
         PyDict_SetItemString(d, "flin", flin);
         Py_DECREF(flin);
+        // tunable log
+        PyObject *flog = PyUFunc_FromFuncAndData(flog_func, NULL, flog_types, 1, 3, 1,
+                                                 PyUFunc_None, "flog",
+                                                 "flog_docstring", 0);
+        PyDict_SetItemString(d, "flog", flog);
+        Py_DECREF(flog);
 
         return module;
     }

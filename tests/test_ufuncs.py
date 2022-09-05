@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import NaN
 
 import _libfcs_ext
 
@@ -19,4 +20,24 @@ def test_flin():
         [0.89, 0.9, 0.8953125],
         [1.0, 1.0, 0.98125]
     ])
-    assert np.allclose(_libfcs_ext.flin(x, T, A), expected)
+    np.testing.assert_allclose(_libfcs_ext.flin(x, T, A), expected, rtol=2e-5)
+
+def test_flog():
+    x = np.array([-1, 0, 0.5, 1, 10, 100, 1000, 1023, 10000, 100000, 262144]).reshape((11,1))
+    T = np.array([10000,1023,262144]).reshape((1,3))
+    M = np.array([5, 4.5, 4.5]).reshape((1,3))
+    expected = np.array([
+        [NaN, NaN, NaN],
+        [NaN, NaN, NaN],
+        [0.139794, 0.264243, -0.271016],
+        [0.2, 0.331139, -0.204120],
+        [0.4, 0.553361, 0.018102],
+        [0.6, 0.775583, 0.240324],
+        [0.8, 0.997805, 0.462547],
+        [0.801975, 1.0, 0.464741],
+        [1.0, 1.220028, 0.684768],
+        [1.2, 1.442250, 0.906991],
+        [1.283708, 1.535259, 1.0]
+    ])
+    print(_libfcs_ext.flog(x,T,M))
+    np.testing.assert_allclose(_libfcs_ext.flog(x, T, M), expected, rtol=2e-5)
