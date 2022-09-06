@@ -1,33 +1,102 @@
 from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
+from distutils.errors import DistutilsSetupError
+from distutils import log as distutils_logger
 import subprocess
-import sys
+from hashlib import sha256
+import platform
 import shutil
+import urllib.request
 from pathlib import Path
 
 import numpy
 
+def sha256_hash(filename):
+    hash = sha256()
+    with open(filename, 'rb' ) as fd:
+        data_chunk = fd.read(1024)
+        while data_chunk:
+            hash.update(data_chunk)
+            data_chunk = fd.read(1024)
+
+    return hash.hexdigest()
+
 with open("README.md" ,"r", encoding='utf8') as fh:
     long_description = fh.read()
 
-subprocess.run(['ghcup', 'run', '--stack', '2.7.5', '--', 'stack', 'build', '--force-dirty'], cwd=Path('src/libfcs_ext/hs_submodule'))
+#subprocess.run(['ghcup', 'run', '--stack', '2.7.5', '--', 'stack', 'build', '--force-dirty'], cwd=Path('src/libfcs_ext/hs_submodule'))
 # Locate the library and include directories
-built_dynamic_libraries = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/*.dll'))
-built_helper_a = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/*.dll.a'))
-for helper_a in built_helper_a:
-    shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
-header_files = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/fcs.h'))
-print(built_dynamic_libraries)
-print(header_files)
+#built_dynamic_libraries = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/*.dll'))
+#built_helper_a = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/*.dll.a'))
+#for helper_a in built_helper_a:
+#    shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
+#header_files = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/fcs.h'))
+#print(built_dynamic_libraries)
+#print(header_files)
 
 
 libfcs_ext = Extension(
     '_libfcs_ext',
     sources=['src/libfcs_ext/libfcs.c'],
     #runtime_library_dirs=['src/libfcs_ext/libfcs/.stack-work/install/47bedf8b/lib'],
-    libraries=[str(x.name) for x in built_helper_a],
-    library_dirs=[str(x.parent) for x in built_helper_a],
-    include_dirs=[str(header_files[0].parent), numpy.get_include()]
+#    libraries=[str(x.name) for x in built_helper_a],
+#    library_dirs=[str(x.parent) for x in built_helper_a],
+#    include_dirs=[str(header_files[0].parent), numpy.get_include()]
 )
+
+# From https://downloads.haskell.org/~ghcup/0.1.18.0/SHA256SUMS
+ghcup_sha256 = {
+    'aarch64-apple-darwin-ghcup-0.1.18.0':'2d3aa19d6f012c1a4ebc5907a05b06cf0d43a1499107020f59847ea2638c8649',
+    'aarch64-linux-ghcup-0.1.18.0':'3e3ee4aa06e426373fb7e29f1770987ca1621e414925f261f325f9acb77e0bcb',
+    'armv7-linux-ghcup-0.1.18.0':'2e94920c772bc24c9fe41004dedf46840f5f036d28d3ed183679d3f34d2c50e0',
+    'i386-linux-ghcup-0.1.18.0':'222914720135261dcc644155bc8a5b15d1d4966c769d50686fe4f41547208759',
+    'x86_64-apple-darwin-ghcup-0.1.18.0':'b34ed98bc0cc6d2169974f8d03173f93c3e3f60607013f1af42c9882c1a0d6f0',
+    'x86_64-freebsd12-ghcup-0.1.18.0':'cc8378a53f3028331dc853acfb253e2258d720b0e18b618b294ed67182a7fa03',
+    'x86_64-freebsd13-ghcup-0.1.18.0':'cc8378a53f3028331dc853acfb253e2258d720b0e18b618b294ed67182a7fa03',
+    'x86_64-linux-ghcup-0.1.18.0':'94559eb7c4569919446af1597d07675e803c20b150323edb7f9d8601c8bbda50',
+    'x86_64-mingw64-ghcup-0.1.18.0.exe':'e2166a50437c677dfab3362749f676f92ff786aae1bfd7a2d289efa3544ee654'
+}
+
+class haskell_dependent_ext(build_ext, object):
+    """
+    Builder for extensions that require the Haskell libfcs
+    module to be built.
+
+    Inspired by https://stackoverflow.com/a/48641638. My modifications
+    to this function are available under CC-BY-SA-4.0
+    """
+    haskell_requiring_extensions = ['_libfcs_ext']
+    def build_extension(self, ext):
+        print(ext.name)
+        if ext.name not in self.haskell_requiring_extensions:
+            # Build as normal for any non-haskell-requiring extension
+            super(haskell_dependent_ext, self).build_extension(ext)
+            return
+        # We need to build a Haskell-dependent binary!
+        hs_scratch = Path(__file__).parent/'.hsbuild'
+        if not hs_scratch.exists():
+            hs_scratch.mkdir()
+        # Step one: download ghcup if not already downloaded
+        sys_arch = platform.machine()
+        if platform.system() == 'Linux':
+            sys_os = 'linux'
+            sys_suffix = ''
+        ghcup_binary_name = f'{sys_arch}-{sys_os}-ghcup-0.1.18.0{sys_suffix}'
+        ghcup_binary = hs_scratch/ghcup_binary_name
+        if not ghcup_binary.exists():
+            distutils_logger.info("Local ghcup not present. Downloading to {ghcup_binary}")
+            r = urllib.request.urlopen(f'https://downloads.haskell.org/~ghcup/0.1.18.0/{ghcup_binary_name}')
+            with ghcup_binary.open('wb') as f:
+                f.write(r.read())
+            if sha256_hash(ghcup_binary) != ghcup_sha256(ghcup_binary_name):
+                raise DistutilsSetupError("Downloaded ghcup appears corrupted!")
+        # Step two: setup GHC/Stack. If on Linux, we need to build and patch a -fPIC build of everything
+        # Step three: build the project
+        # Step four: locate link-time binaries and pass them to the extension
+        
+        # Make the C part of the library as normal
+        super(haskell_dependent_ext, self).build_extension(ext)
+        
 
 setup(
     name="libfcs",
@@ -42,7 +111,8 @@ setup(
     packages=["libfcs"],
     ext_modules=[libfcs_ext],
     package_dir={'': 'src'},
-    data_files=[('', [str(x) for x in built_dynamic_libraries])],
+    #data_files=[('', [str(x) for x in built_dynamic_libraries])],
+    cmdclass = {'build_ext': haskell_dependent_ext},
     entry_points={
         "console_scripts": [
             "fluent=fluent:dispatch_console"
