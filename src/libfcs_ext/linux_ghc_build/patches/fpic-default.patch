@@ -1,0 +1,12 @@
+Index: ghc-ghc-8.10.7-release/compiler/main/DynFlags.hs
+===================================================================
+--- ghc-ghc-8.10.7-release.orig/compiler/main/DynFlags.hs
++++ ghc-ghc-8.10.7-release/compiler/main/DynFlags.hs
+@@ -4662,6 +4662,7 @@ default_PIC platform =
+     (OSDarwin,  ArchAArch64) -> [Opt_PIC]
+     (OSLinux,   ArchAArch64) -> [Opt_PIC, Opt_ExternalDynamicRefs]
+     (OSLinux,   ArchARM {})  -> [Opt_PIC, Opt_ExternalDynamicRefs]
++    (OSLinux, ArchX86_64)    -> [Opt_PIC]
+     (OSOpenBSD, ArchX86_64)  -> [Opt_PIC] -- Due to PIE support in
+                                           -- OpenBSD since 5.3 release
+                                           -- (1 May 2013) we need to
