@@ -22,7 +22,7 @@ print(header_files)
 
 libfcs_ext = Extension(
     '_libfcs_ext',
-    sources=['src/libfcs_ext/libfcs.c'],
+    sources=['src/libfcs_ext/libfcs.c', 'src/libfcs_ext/logicle.c'],
     #runtime_library_dirs=['src/libfcs_ext/libfcs/.stack-work/install/47bedf8b/lib'],
     libraries=[str(x.name) for x in built_helper_a],
     library_dirs=[str(x.parent) for x in built_helper_a],

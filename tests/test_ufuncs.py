@@ -61,3 +61,26 @@ def test_fasinh():
     ])
     print(_libfcs_ext.fasinh(x,T,M,A))
     np.testing.assert_allclose(_libfcs_ext.fasinh(x, T, M, A), expected, rtol=2e-5)
+
+def test_logicle():
+    x = np.array([-10, -5, -1, 0, 0.3, 1, 3, 10, 100, 1000]).reshape((10,1))
+    T = np.array([1000, 1000, 1000]).reshape((1,3))
+    W = np.array([1, 1, 0]).reshape((1,3))
+    M = np.array([4, 4, 4]).reshape((1,3))
+    A = np.array([0, 1, 1]).reshape((1,3))
+    tol = np.array([1e-9, 1e-9, 1e-9]).reshape((1,3))
+    expected = np.array([
+        [0.067574, 0.254059, -0.200009],
+        [0.147986, 0.318389, -0.139829],
+        [0.228752, 0.383001, -0.0008558414],
+        [0.25, 0.4, 0.2],
+        [0.256384, 0.405107, 0.303776],
+        [0.271248, 0.416999, 0.400856],
+        [0.312897, 0.450318, 0.495521],
+        [0.432426, 0.545941, 0.600009],
+        [0.739548, 0.791638, 0.8],
+        [1, 1, 1]
+    ])
+    actual = _libfcs_ext.logicle(x,T,W,M,A,tol)
+    print(actual)
+    np.testing.assert_allclose(actual, expected, rtol=2e-5)
