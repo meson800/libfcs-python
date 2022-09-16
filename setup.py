@@ -98,13 +98,18 @@ class haskell_dependent_ext(build_ext, object):
         install_env = dict(os.environ)|{
             'GHCUP_INSTALL_BASE_PREFIX':str(hs_scratch),
             'GHCUP_SKIP_UPDATE_CHECK':'',
-            'PATH':os.environ['PATH']+f':{(hs_scratch/".ghcup"/"bin").resolve()}'
+            #'PATH':os.environ['PATH']+f':{(hs_scratch/".ghcup"/"bin").resolve()}'
         }
 
         # Step two: setup Stack/GHC.
-        if (not subprocess.run(
+        installed_stacks = subprocess.run(
                 [ghcup_binary, 'list', '-t' ,'stack', '-c', 'installed', '-r'],
-                env=install_env, capture_output=True).stdout.decode().startswith('stack 2.7.5')):
+                env=install_env, capture_output=True).stdout.decode()
+        stack_located = False
+        for stack_ver in installed_stacks.split('\n'):
+            if stack_ver.startswith('stack 2.7.5'):
+                stack_located = True
+        if not stack_located:
             distutils_logger.info(f"Installing stack 2.7.5 into .hsbuild")
             if subprocess.run([ghcup_binary, 'install', 'stack', '2.7.5'], env=install_env).returncode != 0:
                 raise DistutilsSetupError("Unable to install stack using local ghcup!")
@@ -115,43 +120,57 @@ class haskell_dependent_ext(build_ext, object):
             # If on Linux, we need to build and patch a -fPIC build of everything
             # Inspired by https://www.hobson.space/posts/haskell-foreign-library/
             # Start by installing a bootstrap GHC
-            distutils_logger.info(f"Creating patched GHC version")
-            if (not subprocess.run(
+            installed_ghcs = subprocess.run(
                     [ghcup_binary, 'list', '-t' ,'ghc', '-c', 'installed', '-r'],
-                    env=install_env, capture_output=True).stdout.decode().startswith('ghc 8.10.7')):
-                distutils_logger.info(f"Installing GHC 8.10.7 into .hsbuild")
-                if subprocess.run([ghcup_binary, 'install', 'ghc', '8.10.7'], env=install_env).returncode != 0:
-                    raise DistutilsSetupError("Unable to install GHC 8.10.7 using local ghcup!")
+                    env=install_env, capture_output=True).stdout.decode()
+            fpic_ghc_located = False
+            base_ghc_located = False
+            for ghc_ver in installed_ghcs.split('\n'):
+                if ghc_ver.startswith('ghc 8.10.7 '):
+                    base_ghc_located = True
+                if ghc_ver.startswith('ghc 8.10.7-fpic'):
+                    fpic_ghc_located = True
+            if not fpic_ghc_located:
+                distutils_logger.info(f"Creating patched GHC version")
+                if not base_ghc_located:
+                    distutils_logger.info(f"Installing GHC 8.10.7 into .hsbuild")
+                    if subprocess.run([ghcup_binary, 'install', 'ghc', '8.10.7'], env=install_env).returncode != 0:
+                        raise DistutilsSetupError("Unable to install GHC 8.10.7 using local ghcup!")
+                else:
+                    distutils_logger.info(f"Using existing GHC 8.10.7")
+                # Only needed if you want to check what you are patching
+                #bootstrap_ghc_zip = hs_scratch/'ghc-8.10.7.zip'
+                #bootstrap_ghc = hs_scratch/'bootstrap_ghc'
+                #if not bootstrap_ghc_zip.exists():
+                #    ghc_r = urllib.request.urlopen(f'https://gitlab.haskell.org/ghc/ghc/-/archive/ghc-8.10.7-release/ghc-ghc-8.10.7-release.zip')
+                #    with (hs_scratch/'ghc-8.10.7.zip').open('wb') as f:
+                #        f.write(ghc_r.read())
+                #if sha256_hash(bootstrap_ghc_zip) != '31a824d7f2be69630886095bb68cea8dd062086104f39c251180680f14c0acb4':
+                #    raise DistutilsSetupError("Downloaded ghc zip appears corrupted!")
+                #
+                #if not bootstrap_ghc.exists():
+                #    bootstrap_ghc.mkdir()
+                #    with zipfile.ZipFile(bootstrap_ghc_zip, 'r') as ghc_zip:
+                #        ghc_zip.extractall(bootstrap_ghc)
+                linux_pic_dir = hs_scratch.parent/'src'/'libfcs_ext'/'linux_ghc_build'
+                subprocess.run(
+                    [ghcup_binary, 'list'], env=install_env
+                )
+                subprocess.run(
+                    [ghcup_binary, 'compile', 'ghc', '-j4', '-v', '8.10.7', '-b', '8.10.7',
+                    '-p', str(linux_pic_dir/'patches'), '-c', str(linux_pic_dir/'build.mk'),
+                    '-o', '8.10.7-fpic', '--', '--with-system-libffi'], env=install_env
+                )
             else:
-                distutils_logger.info(f"Using existing GHC 8.10.7")
-            # Only needed if you want to check what you are patching
-            #bootstrap_ghc_zip = hs_scratch/'ghc-8.10.7.zip'
-            #bootstrap_ghc = hs_scratch/'bootstrap_ghc'
-            #if not bootstrap_ghc_zip.exists():
-            #    ghc_r = urllib.request.urlopen(f'https://gitlab.haskell.org/ghc/ghc/-/archive/ghc-8.10.7-release/ghc-ghc-8.10.7-release.zip')
-            #    with (hs_scratch/'ghc-8.10.7.zip').open('wb') as f:
-            #        f.write(ghc_r.read())
-            #if sha256_hash(bootstrap_ghc_zip) != '31a824d7f2be69630886095bb68cea8dd062086104f39c251180680f14c0acb4':
-            #    raise DistutilsSetupError("Downloaded ghc zip appears corrupted!")
-            #
-            #if not bootstrap_ghc.exists():
-            #    bootstrap_ghc.mkdir()
-            #    with zipfile.ZipFile(bootstrap_ghc_zip, 'r') as ghc_zip:
-            #        ghc_zip.extractall(bootstrap_ghc)
-            linux_pic_dir = hs_scratch.parent/'src'/'libfcs_ext'/'linux_ghc_build'
-            subprocess.run(
-                [ghcup_binary, 'list'], env=install_env
-            )
-            subprocess.run(
-                [ghcup_binary, 'compile', 'ghc', '-j4', '-v', '8.10.7', '-b', '8.10.7',
-                 '-p', str(linux_pic_dir/'patches'), '-c', str(linux_pic_dir/'build.mk'),
-                 '-o', '8.10.7-fpic', '--', '--with-system-libffi'], env=install_env
-            )
-
-
-            
-
+                distutils_logger.info(f"Using existing patched GHC 8.10.7-fpic")
         # Step three: build the project
+        extra_ghcup_args = () if platform.system() != 'Linux' else ('--ghc', '8.10.7-fpic')
+        extra_stack_args = () if platform.system() != 'Linux' else ('--system-ghc',) # Use the fpic GHC on Linux
+        subprocess.run([ghcup_binary, 'run',
+                        '--stack', '2.7.5', *extra_ghcup_args, # Load tools
+                        '--', 'stack', 'build', '--force-dirty', '--stack-root', str(hs_scratch/'.stack'),
+                        *extra_stack_args],
+                        cwd=Path('src/libfcs_ext/hs_submodule'), env=install_env)
         # Step four: locate link-time binaries and pass them to the extension
         
         # Make the C part of the library as normal
