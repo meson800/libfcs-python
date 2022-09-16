@@ -30,6 +30,8 @@ struct LogicleParams {
 static struct LogicleParams coeff_cache[CACHE_SIZE] = {{0}};
 static int next_cache = 0;
 
+//TODO: have the user malloc the cache so we are thread-safe
+
 void generate_params(double T, double W, double M, double A, int slot) {
     // Generate parameters into a given slot
     struct LogicleParams* params = coeff_cache + slot;

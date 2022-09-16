@@ -10,6 +10,7 @@
 
 #include <fcs.h>
 #include "logicle.h"
+#include "hyperlog.h"
 
 typedef struct {
     PyObject_HEAD
@@ -397,6 +398,29 @@ static void double_logicle(char **args, const npy_intp *dimensions, const npy_in
 PyUFuncGenericFunction logicle_func[1] = {&double_logicle};
 static char logicle_types[7] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
 
+static void double_hyperlog(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_W = args[2], *in_M = args[3], *in_A = args[4], *in_tol = args[5];
+    char *out = args[6];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_W_step = steps[2], in_M_step = steps[3], in_A_step = steps[4], in_tol_step = steps[5];
+    npy_intp out_step = steps[6];
+
+    for (npy_intp i = 0; i < n; ++i) {
+        TO_D(out) = hyperlog(TO_D(in), TO_D(in_T), TO_D(in_W), TO_D(in_M), TO_D(in_A), TO_D(in_tol));
+
+        in += in_step;
+        in_T += in_T_step;
+        in_W += in_W_step;
+        in_M += in_M_step;
+        in_A += in_A_step;
+        in_tol += in_tol_step;
+        out += out_step;
+    }
+}
+PyUFuncGenericFunction hyperlog_func[1] = {&double_hyperlog};
+static char hyperlog_types[7] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
 static PyMethodDef FCSMethods[] = {
     {"loadFCS", loadFCS, METH_VARARGS, "Loads an FCS file"},
     {NULL, NULL, 0, NULL}
@@ -465,6 +489,13 @@ PyInit__libfcs_ext(void)
                                                  "logicle_docstring", 0);
         PyDict_SetItemString(d, "logicle", logicle);
         Py_DECREF(logicle);
+
+        // logicle
+        PyObject *hyperlog = PyUFunc_FromFuncAndData(hyperlog_func, NULL, hyperlog_types, 1, 6, 1,
+                                                 PyUFunc_None, "hyperlog",
+                                                 "hyperlog_docstring", 0);
+        PyDict_SetItemString(d, "hyperlog", hyperlog);
+        Py_DECREF(hyperlog);
 
         return module;
     }

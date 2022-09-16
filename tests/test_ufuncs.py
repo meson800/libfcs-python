@@ -84,3 +84,26 @@ def test_logicle():
     actual = _libfcs_ext.logicle(x,T,W,M,A,tol)
     print(actual)
     np.testing.assert_allclose(actual, expected, rtol=2e-5)
+
+def test_hyperlog():
+    x = np.array([-10, -5, -1, 0, 0.3, 1, 3, 10, 100, 1000]).reshape((10,1))
+    T = np.array([1000, 1000, 1000]).reshape((1,3))
+    W = np.array([1, 1, 0.01]).reshape((1,3))
+    M = np.array([4, 4, 4]).reshape((1,3))
+    A = np.array([0, 1, 1]).reshape((1,3))
+    tol = np.array([1e-9, 1e-9, 1e-9]).reshape((1,3))
+    expected = np.array([
+        [0.083554, 0.266843, 0.017447],
+        [0.155868, 0.324695, 0.106439],
+        [0.229477, 0.383581, 0.182593],
+        [0.25, 0.4, 0.202],
+        [0.256239, 0.404991, 0.207833],
+        [0.270523, 0.416419, 0.221407],
+        [0.309091, 0.447273, 0.259838],
+        [0.416446, 0.533157, 0.386553],
+        [0.731875, 0.7855, 0.774211],
+        [1, 1, 1]
+    ])
+    actual = _libfcs_ext.hyperlog(x,T,W,M,A,tol)
+    print(actual)
+    np.testing.assert_allclose(actual, expected, atol=1e-6)
