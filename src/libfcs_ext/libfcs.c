@@ -447,9 +447,9 @@ static void double_polygon(char **args, npy_intp *dimensions, const npy_intp *st
     npy_intp vertex_step_m = steps[5], vertex_step_2 = steps[6];
     npy_intp output_step_n = steps[7];
     char *outer_event = args[0], *outer_vertex = args[1], *outer_output = args[2];
-    printf("outer: %d, n: %d, m: %d\n\toes: %d, ovs: %d, oos: %d\n\tesn: %d, es2: %d, vsm: %d, vs2: %d, osn: %d\n",
-        outer, n, m, outer_event_step, outer_vertex_step, outer_output_step, event_step_n, event_step_2,
-        vertex_step_m, vertex_step_2, output_step_n);
+    //printf("outer: %d, n: %d, m: %d\n\toes: %d, ovs: %d, oos: %d\n\tesn: %d, es2: %d, vsm: %d, vs2: %d, osn: %d\n",
+    //    outer, n, m, outer_event_step, outer_vertex_step, outer_output_step, event_step_n, event_step_2,
+    //    vertex_step_m, vertex_step_2, output_step_n);
     
     for (npy_intp outer_idx = 0; outer_idx < outer; ++outer_idx,
         outer_event += outer_event_step, outer_vertex += outer_vertex_step,
@@ -484,18 +484,10 @@ static void double_polygon(char **args, npy_intp *dimensions, const npy_intp *st
                 // and if x_1 <= e_x < x_2 (for x_1 < x_2)
                 // We use this asymmetric condition to symmetry-break the case
                 // where we go through a vertex.
-                if (
-                    (
-                        (x_1 < e_x && x_2 >= e_x) ||
-                        (x_2 < e_x && x_1 >= e_x)
-                    ) &&
-                    (y_1 >= e_y || y_2 >= e_y)) {
-                        // Linearly interpolate to see if this is a true intersection
-                        if (y_1 + (e_x - x_1)/(x_2 - x_1) * (y_2 - y_1) > e_y) {
-                            printf("For point [%f, %f], %d\n", e_x, e_y, vertex_idx);
-                        }
-                        TO_BOOL(output) ^= (y_1 + (e_x - x_1)/(x_2 - x_1) * (y_2 - y_1) > e_y);
-                    }
+                if ((min(x_1,x_2) < e_x && max(x_1,x_2) >= e_x) && (y_1 >= e_y || y_2 >= e_y)) {
+                    // Linearly interpolate to see if this is a true intersection
+                    TO_BOOL(output) ^= (y_1 + (e_x - x_1)/(x_2 - x_1) * (y_2 - y_1) > e_y);
+                }
             }
         }
     }
