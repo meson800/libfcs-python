@@ -21,4 +21,22 @@ def test_polygon_gate():
         True, True, True, True
     ])
     actual = _libfcs_ext.polygon_gate(test_points, polygon)
+    print(actual)
+    np.testing.assert_array_equal(actual, expected)
+
+    # Test simple triangle gate (Figure 13)
+    polygon = np.array([[0,0], [300,400], [400,0]])
+    test_points = np.array([[50, 200], [200, 50]])
+    expected = np.array([False,True])
+    actual = _libfcs_ext.polygon_gate(test_points, polygon)
+    np.testing.assert_array_equal(actual, expected)
+
+    # Test simple pentagon gate (Figure 14)
+    polygon = np.array([
+        [0.2, 50], [0.6, 50], [0.6, 150],
+        [0.2, 150], [0.4, 100]
+    ])
+    test_points = np.array([[0.3, 100], [0.5, 100], [0.3, 55], [0.3, 140]])
+    expected = np.array([False, True, True, True])
+    actual = _libfcs_ext.polygon_gate(test_points, polygon)
     np.testing.assert_array_equal(actual, expected)
