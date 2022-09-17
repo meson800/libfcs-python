@@ -1,6 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <math.h>
+#include <assert.h>
 
 #include <Python.h>
 #include "numpy/npy_common.h"
@@ -149,12 +150,12 @@ static PyObject* FCSObject_get_well_id(FCSObject *self, void *_closure) {
 
 static PyObject* FCSObject_get_uncompensated(FCSObject *self, void *_closure) {
     npy_intp dimensions[2] = {self->file->uncompensated.n_rows, self->file->uncompensated.n_cols};
-    PyObject* np_array = PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->uncompensated.data);
+    PyArrayObject* np_array = PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->uncompensated.data);
     if (np_array == NULL) {
         return NULL;
     }
     Py_INCREF(self);
-    if (PyArray_SetBaseObject(np_array, self) != 0) {
+    if (PyArray_SetBaseObject(np_array, (PyObject*)self) != 0) {
         Py_DECREF(self);
         Py_DECREF(np_array);
         return NULL;
@@ -164,12 +165,12 @@ static PyObject* FCSObject_get_uncompensated(FCSObject *self, void *_closure) {
 
 static PyObject* FCSObject_get_compensated(FCSObject *self, void *_closure) {
     npy_intp dimensions[2] = {self->file->compensated.n_rows, self->file->compensated.n_cols};
-    PyObject* np_array = PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->compensated.data);
+    PyArrayObject* np_array = PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->compensated.data);
     if (np_array == NULL) {
         return NULL;
     }
     Py_INCREF(self);
-    if (PyArray_SetBaseObject(np_array, self) != 0) {
+    if (PyArray_SetBaseObject(np_array, (PyObject*)self) != 0) {
         Py_DECREF(self);
         Py_DECREF(np_array);
         return NULL;
@@ -303,7 +304,8 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
 }
 
 /************** ufuncs for fast Numpy processing *******************/
-#define TO_D(x) (*((double*)x))
+#define TO_D(x) (*((double*)(x)))
+#define TO_BOOL(x) (*((npy_bool*)(x)))
 static void double_flin(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
 {
     npy_intp n = dimensions[0];
@@ -426,6 +428,83 @@ static PyMethodDef FCSMethods[] = {
     {NULL, NULL, 0, NULL}
 };
 
+static void double_polygon(char **args, npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    // To understand the madness, use
+    // https://github.com/numpy/numpy/blob/aeb39dfb3566e853a09082bfe9438ef118916be7/numpy/core/src/umath/matmul.c.src
+    //
+    // Our signature here is (n,2),(m,2)->(n)
+    // for `n` points with `m` polygon vertices
+    npy_intp outer = dimensions[0];
+    npy_intp n = dimensions[1];
+    assert(dimensions[2] == 2);
+    npy_intp m = dimensions[3];
+    assert(dimensions[4] == 2);
+    // Steps to take for each outer loop
+    npy_intp outer_event_step = steps[0], outer_vertex_step = steps[1], outer_output_step = steps[2];
+    // Steps for the events
+    npy_intp event_step_n = steps[3], event_step_2 = steps[4];
+    npy_intp vertex_step_m = steps[5], vertex_step_2 = steps[6];
+    npy_intp output_step_n = steps[7];
+    char *outer_event = args[0], *outer_vertex = args[1], *outer_output = args[2];
+    printf("outer: %d, n: %d, m: %d\n\toes: %d, ovs: %d, oos: %d\n\tesn: %d, es2: %d, vsm: %d, vs2: %d, osn: %d\n",
+        outer, n, m, outer_event_step, outer_vertex_step, outer_output_step, event_step_n, event_step_2,
+        vertex_step_m, vertex_step_2, output_step_n);
+    
+    for (npy_intp outer_idx = 0; outer_idx < outer; ++outer_idx,
+        outer_event += outer_event_step, outer_vertex += outer_vertex_step,
+        outer_output += outer_output_step) {
+        char *event = outer_event;
+        char *vertex = outer_vertex;
+        char *output = outer_output;
+        for (npy_intp event_idx = 0; event_idx < n; ++event_idx,
+            event += event_step_n, output += output_step_n) {
+            // For each event, check if a ray projected straight upward
+            // from the event intersects an even or odd number of polygon
+            // line segments
+            char *first_vertex = vertex;
+
+            TO_BOOL(output) = NPY_FALSE;
+            for (npy_intp vertex_idx = 0; vertex_idx < m; ++vertex_idx, first_vertex += vertex_step_m) {
+                // Each vertex is associated with a line segment.
+                char *second_vertex = first_vertex;
+                if (vertex_idx < m - 1) {
+                    second_vertex += vertex_step_m;
+                } else {
+                    // If we are on the last vertex, loop back to the
+                    // first vertex to complete the line segment
+                    second_vertex = vertex;
+                }
+
+                double e_x = TO_D(event), e_y = TO_D(event + event_step_2);
+                double x_1 = TO_D(first_vertex), y_1 = TO_D(first_vertex + vertex_step_2);
+                double x_2 = TO_D(second_vertex), y_2 = TO_D(second_vertex + vertex_step_2);
+
+                // We only potentially cross if y_1 >= e_y or y_2 >= e_y (e.g. segment is above us)
+                // and if x_1 <= e_x < x_2 (for x_1 < x_2)
+                // We use this asymmetric condition to symmetry-break the case
+                // where we go through a vertex.
+                if (
+                    (
+                        (x_1 < e_x && x_2 >= e_x) ||
+                        (x_2 < e_x && x_1 >= e_x)
+                    ) &&
+                    (y_1 >= e_y || y_2 >= e_y)) {
+                        // Linearly interpolate to see if this is a true intersection
+                        if (y_1 + (e_x - x_1)/(x_2 - x_1) * (y_2 - y_1) > e_y) {
+                            printf("For point [%f, %f], %d\n", e_x, e_y, vertex_idx);
+                        }
+                        TO_BOOL(output) ^= (y_1 + (e_x - x_1)/(x_2 - x_1) * (y_2 - y_1) > e_y);
+                    }
+            }
+        }
+    }
+}
+
+PyUFuncGenericFunction polygon_gate_func[1] = {&double_polygon};
+static char polygon_gate_types[3] = {NPY_DOUBLE, NPY_DOUBLE, NPY_BOOL};
+static char* polygon_gate_signature = "(n,2),(m,2)->(n)";
+
 static struct PyModuleDef libfcsmodule = {
     PyModuleDef_HEAD_INIT,
     .m_name = "_libfcs_ext",
@@ -496,6 +575,15 @@ PyInit__libfcs_ext(void)
                                                  "hyperlog_docstring", 0);
         PyDict_SetItemString(d, "hyperlog", hyperlog);
         Py_DECREF(hyperlog);
+
+        // polygon gate
+        PyObject *polygon_gate = PyUFunc_FromFuncAndDataAndSignature(
+            polygon_gate_func, NULL, polygon_gate_types, 1, 2, 1,
+            PyUFunc_None, "polygon_gate",
+            "polygon_gate_docstring", 0,
+            polygon_gate_signature);
+        PyDict_SetItemString(d, "polygon_gate", polygon_gate);
+        Py_DECREF(polygon_gate);
 
         return module;
     }
