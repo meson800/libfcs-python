@@ -70,6 +70,9 @@ def init_haskell_tools():
 
     # Step one: download ghcup if not already downloaded
     sys_arch = platform.machine()
+    # Translate system architecture reported on Windows
+    if sys_arch == 'AMD64':
+        sys_arch = 'x86_64'
     if platform.system() == 'Linux':
         sys_os = 'linux'
         sys_suffix = ''
