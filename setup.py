@@ -82,8 +82,9 @@ def init_haskell_tools():
     ghcup_binary_name = f'{sys_arch}-{sys_os}-ghcup-0.1.18.0{sys_suffix}'
     ghcup_binary = hs_scratch/ghcup_binary_name
     if not ghcup_binary.exists():
-        distutils_logger.info(f"Local ghcup not present. Downloading to {ghcup_binary}")
-        r = urllib.request.urlopen(f'https://downloads.haskell.org/~ghcup/0.1.18.0/{ghcup_binary_name}')
+        ghcup_url = f'https://downloads.haskell.org/~ghcup/0.1.18.0/{ghcup_binary_name}'
+        distutils_logger.info(f"Local ghcup not present. Downloading {ghcup_url} to {ghcup_binary}")
+        r = urllib.request.urlopen(ghcup_url)
         with ghcup_binary.open('wb') as f:
             f.write(r.read())
             ghcup_binary.chmod(0o755)
