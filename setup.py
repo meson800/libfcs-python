@@ -78,7 +78,7 @@ def init_haskell_tools():
         sys_suffix = ''
     if platform.system() == 'Windows':
         sys_os = 'mingw64'
-        sys_suffix = ''
+        sys_suffix = '.exe'
     ghcup_binary_name = f'{sys_arch}-{sys_os}-ghcup-0.1.18.0{sys_suffix}'
     ghcup_binary = hs_scratch/ghcup_binary_name
     if not ghcup_binary.exists():
