@@ -191,10 +191,6 @@ class haskell_dependent_ext(build_ext, object):
             subprocess.run([ghcup_binary, 'run', '--stack', '2.7.5', *extra_ghcup_args, '--', 'ghc', '--version'],
             env=ghcup_env, capture_output=True).stdout.decode()
         )
-        distutils_logger.info('Current PATH' +
-            subprocess.run([ghcup_binary, 'run', '--stack', '2.7.5', *extra_ghcup_args, '--', 'ghc', '--version'],
-            env=ghcup_env, capture_output=True).stdout.decode()
-        )
         final_build_args = [ghcup_binary, 'run',
                         '--stack', '2.7.5', *extra_ghcup_args, # Load tools
                         '--', 'stack', 'build', '--force-dirty', '--stack-root', str(hs_scratch/'.stack'),
