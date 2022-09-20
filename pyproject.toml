@@ -1,3 +1,13 @@
 [build-system]
-requires = ["setuptools", "oldest-supported-numpy"]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2", "oldest-supported-numpy"]
 build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+# Run the package tests using `pytest`
+test-command = "pytest {package}/tests"
+test-requires = "pytest"
+
+[tool.cibuildwheel.windows]
+# Use delvewheel on windows
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
