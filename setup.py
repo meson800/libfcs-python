@@ -102,7 +102,7 @@ def init_haskell_tools():
 
     # Step two: setup Stack/GHC.
     installed_stacks = subprocess.run(
-            [ghcup_binary, 'list', '-t' ,'stack', '-c', 'installed', '-r'],
+            [str(ghcup_binary), 'list', '-t' ,'stack', '-c', 'installed', '-r'],
             env=install_env, capture_output=True).stdout.decode()
     stack_located = False
     for stack_ver in installed_stacks.split('\n'):
@@ -110,7 +110,7 @@ def init_haskell_tools():
             stack_located = True
     if not stack_located:
         distutils_logger.info(f"Installing stack 2.7.5 into .hsbuild")
-        if subprocess.run([ghcup_binary, 'install', 'stack', '2.7.5'], env=install_env).returncode != 0:
+        if subprocess.run([str(ghcup_binary), 'install', 'stack', '2.7.5'], env=install_env).returncode != 0:
             raise DistutilsSetupError("Unable to install stack using local ghcup!")
     else:
         distutils_logger.info(f"Using existing stack 2.7.5")
@@ -120,7 +120,7 @@ def init_haskell_tools():
         # Inspired by https://www.hobson.space/posts/haskell-foreign-library/
         # Start by installing a bootstrap GHC
         installed_ghcs = subprocess.run(
-                [ghcup_binary, 'list', '-t' ,'ghc', '-c', 'installed', '-r'],
+                [str(ghcup_binary), 'list', '-t' ,'ghc', '-c', 'installed', '-r'],
                 env=install_env, capture_output=True).stdout.decode()
         fpic_ghc_located = False
         base_ghc_located = False
@@ -133,7 +133,7 @@ def init_haskell_tools():
             distutils_logger.info(f"Creating patched GHC version")
             if not base_ghc_located:
                 distutils_logger.info(f"Installing GHC 8.10.7 into .hsbuild")
-                if subprocess.run([ghcup_binary, 'install', 'ghc', '8.10.7'], env=install_env).returncode != 0:
+                if subprocess.run([str(ghcup_binary), 'install', 'ghc', '8.10.7'], env=install_env).returncode != 0:
                     raise DistutilsSetupError("Unable to install GHC 8.10.7 using local ghcup!")
             else:
                 distutils_logger.info(f"Using existing GHC 8.10.7")
@@ -153,7 +153,7 @@ def init_haskell_tools():
             #        ghc_zip.extractall(bootstrap_ghc)
             linux_pic_dir = (hs_scratch.parent/'src'/'libfcs_ext'/'linux_ghc_build').resolve()
             if subprocess.run(
-                [ghcup_binary, 'compile', 'ghc', '-j4', '-v', '8.10.7', '-b', '8.10.7',
+                [str(ghcup_binary), 'compile', 'ghc', '-j4', '-v', '8.10.7', '-b', '8.10.7',
                 '-p', str(linux_pic_dir/'patches'), '-c', str(linux_pic_dir/'build.mk'),
                 '-o', '8.10.7-fpic', '--', '--disable-numa', '--with-system-libffi'],
                 env={**install_env, **{'PATH': os.environ['PATH']+':'+str(hs_scratch/'.ghcup'/'bin')}}).returncode != 0:
@@ -194,14 +194,14 @@ class haskell_dependent_ext(build_ext, object):
         extra_ghcup_args = () if platform.system() != 'Linux' else ('--ghc', '8.10.7-fpic')
         extra_stack_args = () if platform.system() != 'Linux' else ('--system-ghc', '--no-install-ghc') # Use the fpic GHC on Linux
         installed_ghcs = subprocess.run(
-                [ghcup_binary, 'list', '-t' ,'ghc', '-c', 'installed', '-r'],
+                [str(ghcup_binary), 'list', '-t' ,'ghc', '-c', 'installed', '-r'],
                 env=install_env, capture_output=True).stdout.decode()
         distutils_logger.info(f'Installed GHCs: {installed_ghcs}')
         distutils_logger.info('Loading desired ghc that reports version: ' +
-            subprocess.run([ghcup_binary, 'run', '--stack', '2.7.5', *extra_ghcup_args, '--', 'ghc', '--version'],
+            subprocess.run([str(ghcup_binary), 'run', '--stack', '2.7.5', *extra_ghcup_args, '--', 'ghc', '--version'],
             env=ghcup_env, capture_output=True).stdout.decode()
         )
-        final_build_args = [ghcup_binary, 'run',
+        final_build_args = [str(ghcup_binary), 'run',
                         '--stack', '2.7.5', *extra_ghcup_args, # Load tools
                         '--', 'stack', 'build', '--force-dirty', '--stack-root', str(hs_scratch/'.stack'),
                         *extra_stack_args]
@@ -258,8 +258,5 @@ setup(
     python_requires='>=3.7',
     install_requires=[
         "numpy"
-    ],
-    test_requires=[
-        "pytest"
     ]
 )
