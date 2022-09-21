@@ -196,18 +196,20 @@ class haskell_dependent_ext(build_ext, object):
         installed_ghcs = subprocess.run(
                 [str(ghcup_binary), 'list', '-t' ,'ghc', '-c', 'installed', '-r'],
                 env=install_env, capture_output=True).stdout.decode()
-        distutils_logger.info(f'Installed GHCs: {installed_ghcs}')
-        distutils_logger.info('Loading desired ghc that reports version: ' +
-            subprocess.run([str(ghcup_binary), 'run', '--stack', '2.7.5', *extra_ghcup_args, '--', 'ghc', '--version'],
-            env=ghcup_env, capture_output=True).stdout.decode()
-        )
+        if platform.system() == 'Linux':
+            distutils_logger.info(f'Installed GHCs: {installed_ghcs}')
+            distutils_logger.info('Loading desired ghc that reports version: ' +
+                subprocess.run([str(ghcup_binary), 'run', '--stack', '2.7.5', *extra_ghcup_args, '--', 'ghc', '--version'],
+                env=ghcup_env, capture_output=True).stdout.decode()
+            )
         final_build_args = [str(ghcup_binary), 'run',
                         '--stack', '2.7.5', *extra_ghcup_args, # Load tools
                         '--', 'stack', 'build', '--force-dirty', '--stack-root', str(hs_scratch/'.stack'),
                         *extra_stack_args]
-        distutils_logger.info(f"About to run Haskell module build with args: {str(final_build_args)}")
+        run_path = Path('src/libfcs_ext/hs_submodule').resolve()
+        distutils_logger.info(f"About to run Haskell module build with args: {str(final_build_args)} in {str(run_path)}")
         
-        if subprocess.run(final_build_args, cwd=Path('src/libfcs_ext/hs_submodule'), env=ghcup_env).returncode != 0:
+        if subprocess.run(final_build_args, cwd=run_path, env=ghcup_env).returncode != 0:
             raise DistutilsSetupError("Compilation of Haskell module failed")
         # Step four: locate link-time binaries and pass them to the extension
         dynamic_extension = {'linux': 'so', 'windows': 'dll'}[sys_os]
