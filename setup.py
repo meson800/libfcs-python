@@ -230,11 +230,11 @@ class haskell_dependent_ext(build_ext, object):
                 shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
             ext.libraries.extend([str(lib.name) for lib in built_helper_a])
             ext.library_dirs.extend([str(lib.parent) for lib in built_helper_a])
-            pyd_location = Path(ext.get_ext_fullpath('_libfcs_ext')).resolve().parent
-            print(pyd_location)
-            distutils_logger.info(f"Copying built DLLs to destination: {str(pyd_location)}")
+            dll_location = Path('src/libfcs_ext').resolve()
+            print(dll_location)
+            distutils_logger.info(f"Copying built DLLs to destination: {str(dll_location)}")
             for dll in built_dynamic_libraries:
-                shutil.copy(dll, pyd_location/(dll.name))
+                shutil.copy(dll, dll_location/(dll.name))
         else:
             # Much nicer on MacOS/Linux
             ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
@@ -260,6 +260,7 @@ setup(
     packages=["libfcs"],
     ext_modules=[libfcs_ext],
     package_dir={'': 'src'},
+    package_data={'_libfcs_ext': ['libfcs.dll'] if platform.system() == 'Windows' else []},
     #data_files=[('', [str(x) for x in built_dynamic_libraries])],
     cmdclass = {'build_ext': haskell_dependent_ext, 'prepare_haskell': PrepareHaskellTools},
     entry_points={
