@@ -212,17 +212,33 @@ class haskell_dependent_ext(build_ext, object):
         if subprocess.run(final_build_args, cwd=run_path, env=ghcup_env).returncode != 0:
             raise DistutilsSetupError("Compilation of Haskell module failed")
         # Step four: locate link-time binaries and pass them to the extension
-        dynamic_extension = {'linux': 'so', 'windows': 'dll'}[sys_os]
+        dynamic_extension = {'linux': 'so', 'mingw64': 'dll', 'apple-darwin': '.dylib'}[sys_os]
         built_dynamic_libraries = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob(
             f'**/install/**/*libfcs.{dynamic_extension}'))
-        print(built_dynamic_libraries)
         runtime_dirs = {str(f.resolve().parent) for f in built_dynamic_libraries}
         header_files = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/fcs.h'))
         extra_include_dirs = {str(f.parent) for f in header_files}
+        print(built_dynamic_libraries)
+
         ext.include_dirs.extend(list(extra_include_dirs))
-        ext.runtime_library_dirs.extend(list(runtime_dirs))
+
         print(ext.libraries)
-        ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
+        if sys_os == 'mingw64':
+            # On windows, you link against the helper .a
+            built_helper_a = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/libfcs.dll.a'))
+            for helper_a in built_helper_a:
+                shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
+            ext.libraries.extend([str(lib.name) for lib in built_helper_a])
+            ext.library_dirs.extend([str(lib.parent) for lib in built_helper_a])
+            dll_location = Path('src/libfcs_ext').resolve()
+            print(dll_location)
+            distutils_logger.info(f"Copying built DLLs to destination: {str(dll_location)}")
+            for dll in built_dynamic_libraries:
+                shutil.copy(dll, dll_location/(dll.name))
+        else:
+            # Much nicer on MacOS/Linux
+            ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
+            ext.runtime_library_dirs.extend(list(runtime_dirs))
         ext.library_dirs.extend(list(runtime_dirs))
         print(ext.libraries)
         print(ext.library_dirs)
@@ -244,6 +260,7 @@ setup(
     packages=["libfcs"],
     ext_modules=[libfcs_ext],
     package_dir={'': 'src'},
+    package_data={'libfcs_ext': ['libfcs.dll'] if platform.system() == 'Windows' else []},
     #data_files=[('', [str(x) for x in built_dynamic_libraries])],
     cmdclass = {'build_ext': haskell_dependent_ext, 'prepare_haskell': PrepareHaskellTools},
     entry_points={
