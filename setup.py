@@ -35,8 +35,8 @@ setup(
     url='https://github.com/meson800/libfcs-python',
     author="Christopher Johnstone",
     author_email="meson800@gmail.com",
-    description="A node- and Bokeh-based flow cytometry platform.",
-    license='GPLv2+',
+    description="",
+    license='MIT',
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=["libfcs"],
@@ -44,9 +44,6 @@ setup(
     package_dir={'': 'src'},
     data_files=[('', [str(x) for x in built_dynamic_libraries])],
     entry_points={
-        "console_scripts": [
-            "fluent=fluent:dispatch_console"
-            ],
         },
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
