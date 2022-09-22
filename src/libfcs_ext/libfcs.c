@@ -16,8 +16,82 @@
 typedef struct {
     PyObject_HEAD
     /* Type-specific fields */
+    FCSObject* parent;
+    int param_idx;
+} FCSParameter;
+
+static PyTypeObject FCSParameter_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "_libfcs_ext.Parameter",
+    .tp_doc = PyDoc_STR("FCS parameter"),
+    .tp_basicsize = sizeof(FCSParameter),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_FINALIZE | Py_TPFLAGS_DISALLOW_INSTANTIATION,
+    .tp_new = FCSObject_new,
+    .tp_dealloc = FCSObject_dealloc,
+    .tp_getset = FCSObject_getsetters,
+};
+
+typedef struct {
+    PyObject_HEAD
+    /* Type-specific fields */
     FCSFile* file;
 } FCSObject;
+
+static PyObject * FCSParameter_factory(FCSObject* parent, int param_idx) {
+    FCSParameter *self;
+    self = (FCSParameter*) FCSParameter_Type.tp_alloc(&FCSParameter_Type, 0);
+    if (self != NULL) {
+        Py_INCREF(parent);
+        self->parent = parent;
+        self->param_idx = param_idx;
+    }
+    return (PyObject *) self;
+}
+
+typedef struct {
+    PyObject_HEAD
+    /* Type-specific fields */
+    FCSObject* parent;
+} FCSParameterList;
+
+static Py_ssize_t FCSParameterListLength(PyObject *self) {
+    FCSParameterList* object = (FCSParameterList*) self;
+    return object->parent->file->n_parameters;
+}
+
+static PyObject* FCSParameterListGetItem(PyObject *self, Py_ssize_t i) {
+    FCSParameterList* object = (FCSParameterList*) self;
+    return FCSParameter_factory(object->parent, i);
+}
+
+static PySequenceMethods FCSParameterListSeqMethods = {
+    .sq_length = FCSParameterListLength,
+    .sq_item = FCSParameterListGetItem,
+};
+
+static int FCSParameterList_traverse(FCSParamterList* self, visitproc visit, void *arg) {
+    Py_VISIT(self->parent);
+    return 0;
+}
+
+static  void FCSParameterList_dealloc(FCSParameterList *self) {
+    PyObject_GC_UnTrack(self);
+    Py_CLEAR(self->parent);
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+static PyTypeObject FCSParameterList_Type = {
+    PyVarObject_HEAD_INIT(NULL, )
+    .tp_name = "_libfcs_ext.ParameterList`"
+    .tp_doc = PyDoc_STR("FCS Parameter list"),
+    .tp_basicsize = sizeof(FCSParameterList),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_DISALLOW_INSTANTIATION,
+    .tp_dealloc = FCSParameterList_dealloc,
+    .tp_traverse = FCSParameterList_traverse,
+    .tp_as_sequence = &FCSParameterListSeqMethods,
+};
 
 static PyObject * FCSObject_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"filename", NULL};
