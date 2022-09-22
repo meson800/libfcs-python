@@ -1,0 +1,8 @@
+graft src/libfcs_ext/hs_submodule
+prune src/libfcs_ext/hs_submodule/.git
+prune src/libfcs_ext/hs_submodule/.stack-work
+prune src/libfcs_ext/hs_submodule/.vscode
+
+prune .git
+prune .vscode
+graft src/libfcs_ext/linux_ghc_build/
