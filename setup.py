@@ -260,7 +260,7 @@ setup(
     packages=["libfcs"],
     ext_modules=[libfcs_ext],
     package_dir={'': 'src'},
-    package_data={'_libfcs_ext': ['libfcs.dll'] if platform.system() == 'Windows' else []},
+    package_data={'libfcs_ext': ['libfcs.dll'] if platform.system() == 'Windows' else []},
     #data_files=[('', [str(x) for x in built_dynamic_libraries])],
     cmdclass = {'build_ext': haskell_dependent_ext, 'prepare_haskell': PrepareHaskellTools},
     entry_points={
