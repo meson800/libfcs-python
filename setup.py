@@ -221,7 +221,6 @@ class haskell_dependent_ext(build_ext, object):
         print(built_dynamic_libraries)
 
         ext.include_dirs.extend(list(extra_include_dirs))
-        ext.runtime_library_dirs.extend(list(runtime_dirs))
 
         print(ext.libraries)
         if sys_os == 'mingw64':
@@ -234,6 +233,7 @@ class haskell_dependent_ext(build_ext, object):
         else:
             # Much nicer on MacOS/Linux
             ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
+            ext.runtime_library_dirs.extend(list(runtime_dirs))
         ext.library_dirs.extend(list(runtime_dirs))
         print(ext.libraries)
         print(ext.library_dirs)
