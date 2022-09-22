@@ -230,6 +230,11 @@ class haskell_dependent_ext(build_ext, object):
                 shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
             ext.libraries.extend([str(lib.name) for lib in built_helper_a])
             ext.library_dirs.extend([str(lib.parent) for lib in built_helper_a])
+            pyd_location = Path(ext.get_ext_fullpath('_libfcs_ext')).resolve().parent
+            print(pyd_location)
+            distutils_logger.info(f"Copying built DLLs to destination: {str(pyd_location)}")
+            for dll in built_dynamic_libraries:
+                shutil.copy(dll, pyd_location/(dll.name))
         else:
             # Much nicer on MacOS/Linux
             ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
