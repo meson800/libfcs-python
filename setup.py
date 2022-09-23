@@ -230,7 +230,7 @@ class haskell_dependent_ext(build_ext, object):
                 shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
             ext.libraries.extend([str(lib.name) for lib in built_helper_a])
             ext.library_dirs.extend([str(lib.parent) for lib in built_helper_a])
-            dll_location = Path('src/libfcs').resolve()
+            dll_location = Path(self.get_ext_fullpath('libfcs.libfcsdll')).resolve().parent
             print(dll_location)
             distutils_logger.info(f"Copying built DLLs to destination: {str(dll_location)}")
             for dll in built_dynamic_libraries:
@@ -245,6 +245,20 @@ class haskell_dependent_ext(build_ext, object):
         
         # Make the C part of the library as normal
         super(haskell_dependent_ext, self).build_extension(ext)
+        print(dir(self))
+        print(self.get_outputs())
+        print(self.get_ext_filename('libfcs'))
+        print(self.get_ext_fullpath('libfcs'))
+        print(self.get_ext_filename('libfcs._libfcs_ext'))
+        print(self.get_ext_fullpath('libfcs._libfcs_ext'))
+
+    def get_outputs(self):
+        if platform.system() == 'Windows':
+            extra_dll = str(Path(self.get_ext_fullpath('libfcs.libfcsdll')).parent / 'libfcs.dll')
+            return [extra_dll] + super(haskell_dependent_ext, self).get_outputs()
+        
+        return super(haskell_dependent_ext, self).get_outputs()
+        
         
 
 setup(
@@ -260,7 +274,7 @@ setup(
     packages=["libfcs"],
     ext_modules=[libfcs_ext],
     package_dir={'': 'src',},
-    package_data={'libfcs': ['libfcs.dll'] if platform.system() == 'Windows' else []},
+    #package_data={'libfcs': ['libfcs.dll'] if platform.system() == 'Windows' else []},
     #data_files=[('', [str(x) for x in built_dynamic_libraries])],
     cmdclass = {'build_ext': haskell_dependent_ext, 'prepare_haskell': PrepareHaskellTools},
     entry_points={
