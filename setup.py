@@ -42,7 +42,7 @@ with open("README.md" ,"r", encoding='utf8') as fh:
 
 
 libfcs_ext = Extension(
-    '_libfcs_ext',
+    'libfcs._libfcs_ext',
     sources=['src/libfcs_ext/libfcs.c', 'src/libfcs_ext/logicle.c', 'src/libfcs_ext/hyperlog.c'],
     #runtime_library_dirs=['src/libfcs_ext/libfcs/.stack-work/install/47bedf8b/lib'],
 #    libraries=[str(x.name) for x in built_helper_a],
@@ -181,7 +181,7 @@ class haskell_dependent_ext(build_ext, object):
     Inspired by https://stackoverflow.com/a/48641638. My modifications
     to this function are available under CC-BY-SA-4.0
     """
-    haskell_requiring_extensions = ['_libfcs_ext']
+    haskell_requiring_extensions = ['libfcs._libfcs_ext']
     def build_extension(self, ext):
         print(ext.name)
         if ext.name not in self.haskell_requiring_extensions:
@@ -230,7 +230,7 @@ class haskell_dependent_ext(build_ext, object):
                 shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
             ext.libraries.extend([str(lib.name) for lib in built_helper_a])
             ext.library_dirs.extend([str(lib.parent) for lib in built_helper_a])
-            dll_location = Path('src/libfcs_ext').resolve()
+            dll_location = Path('src/libfcs').resolve()
             print(dll_location)
             distutils_logger.info(f"Copying built DLLs to destination: {str(dll_location)}")
             for dll in built_dynamic_libraries:
@@ -259,8 +259,8 @@ setup(
     long_description_content_type="text/markdown",
     packages=["libfcs"],
     ext_modules=[libfcs_ext],
-    package_dir={'': 'src'},
-    package_data={'libfcs_ext': ['libfcs.dll'] if platform.system() == 'Windows' else []},
+    package_dir={'': 'src',},
+    package_data={'libfcs': ['libfcs.dll'] if platform.system() == 'Windows' else []},
     #data_files=[('', [str(x) for x in built_dynamic_libraries])],
     cmdclass = {'build_ext': haskell_dependent_ext, 'prepare_haskell': PrepareHaskellTools},
     entry_points={

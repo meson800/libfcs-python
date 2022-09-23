@@ -1,5 +1,5 @@
 import numpy as np
-import _libfcs_ext
+import libfcs._libfcs_ext as _libfcs_ext
 
 def test_polygon_gate():
     # Test self-intersecting gate (Figure 12)

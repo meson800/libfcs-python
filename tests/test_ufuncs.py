@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import NaN
 
-import _libfcs_ext
+import libfcs._libfcs_ext as _libfcs_ext
 
 # Tests from 
 # https://master.dl.sourceforge.net/project/flowcyt/Gating-ML/Gating-ML%202.0/GatingML_2.0_Specification.20130122.pdf
