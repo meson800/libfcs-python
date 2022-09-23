@@ -229,7 +229,10 @@ class haskell_dependent_ext(build_ext, object):
             for helper_a in built_helper_a:
                 shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
             ext.libraries.extend([str(lib.name) for lib in built_helper_a])
-            ext.library_dirs.extend([str(lib.parent) for lib in built_helper_a])
+            print('Helper A load')
+            print(built_helper_a)
+            print(ext.libraries)
+            ext.library_dirs.extend([str(lib.parent.resolve()) for lib in built_helper_a])
             dll_location = Path(self.get_ext_fullpath('libfcs.libfcsdll')).resolve().parent
             print(dll_location)
             distutils_logger.info(f"Copying built DLLs to destination: {str(dll_location)}")
@@ -285,7 +288,7 @@ setup(
         "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
         "Operating System :: OS Independent",
         ],
-    python_requires='>=3.7',
+    python_requires='>=3.8',
     install_requires=[
         "numpy"
     ]
