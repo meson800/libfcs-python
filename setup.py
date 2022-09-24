@@ -203,7 +203,7 @@ class haskell_dependent_ext(build_ext, object):
             )
         final_build_args = [str(ghcup_binary), 'run',
                         '--stack', '2.7.5', *extra_ghcup_args, # Load tools
-                        '--', 'stack', 'build', '--force-dirty', '--stack-root', str(hs_scratch/'.stack'),
+                        '--', 'stack', 'build', '--force-dirty', '--stack-root', str((hs_scratch/'.stack').resolve()),
                         *extra_stack_args]
         run_path = Path('src/libfcs_ext/hs_submodule').resolve()
         distutils_logger.info(f"About to run Haskell module build with args: {str(final_build_args)} in {str(run_path)}")
