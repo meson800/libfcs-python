@@ -288,8 +288,8 @@ setup(
         "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
         "Operating System :: OS Independent",
         ],
-    python_requires='>=3.8',
+    python_requires='>=3.7',
     install_requires=[
-        "numpy"
+        "numpy>=1.16" # Need numpy 1.16 for constant dimension length gufuncs (https://numpy.org/doc/stable/release/1.16.0-notes.html#generalized-ufunc-signatures-now-allow-fixed-size-dimensions)
     ]
 )

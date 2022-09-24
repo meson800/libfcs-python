@@ -8,7 +8,6 @@
 #include "numpy/ndarrayobject.h"
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
-#include "numpy/npy_3kcompat.h"
 
 #include <fcs.h>
 #include "logicle.h"
@@ -228,6 +227,7 @@ static PyGetSetDef FCSObject_getsetters[] = {
             "Well identifier", NULL},
     {NULL} /* Sentinel */
 };
+
 
 static PyTypeObject FCSType = {
     PyVarObject_HEAD_INIT(NULL, 0)
