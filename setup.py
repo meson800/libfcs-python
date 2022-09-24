@@ -160,8 +160,7 @@ def init_haskell_tools():
                 raise DistutilsSetupError("Unable to create patched GHC version")
         else:
             distutils_logger.info(f"Using existing patched GHC 8.10.7-fpic")
-    ghcup_env = {**install_env, **{'PATH': os.environ['PATH']+':'+str(hs_scratch/'.ghcup'/'bin')}}
-    return (sys_os, hs_scratch, ghcup_binary, install_env, ghcup_env)
+    return (sys_os, hs_scratch, ghcup_binary, install_env)
 
 
 class PrepareHaskellTools(Command) :
@@ -189,7 +188,7 @@ class haskell_dependent_ext(build_ext, object):
             super(haskell_dependent_ext, self).build_extension(ext)
             return
         # We need to build a Haskell-dependent binary!
-        sys_os, hs_scratch, ghcup_binary, install_env, ghcup_env = init_haskell_tools()
+        sys_os, hs_scratch, ghcup_binary, install_env = init_haskell_tools()
         # Step three: build the project
         extra_ghcup_args = () if platform.system() != 'Linux' else ('--ghc', '8.10.7-fpic')
         extra_stack_args = () if platform.system() != 'Linux' else ('--system-ghc', '--no-install-ghc') # Use the fpic GHC on Linux
@@ -200,7 +199,7 @@ class haskell_dependent_ext(build_ext, object):
             distutils_logger.info(f'Installed GHCs: {installed_ghcs}')
             distutils_logger.info('Loading desired ghc that reports version: ' +
                 subprocess.run([str(ghcup_binary), 'run', '--stack', '2.7.5', *extra_ghcup_args, '--', 'ghc', '--version'],
-                env=ghcup_env, capture_output=True).stdout.decode()
+                env=install_env, capture_output=True).stdout.decode()
             )
         final_build_args = [str(ghcup_binary), 'run',
                         '--stack', '2.7.5', *extra_ghcup_args, # Load tools
@@ -209,7 +208,7 @@ class haskell_dependent_ext(build_ext, object):
         run_path = Path('src/libfcs_ext/hs_submodule').resolve()
         distutils_logger.info(f"About to run Haskell module build with args: {str(final_build_args)} in {str(run_path)}")
         
-        if subprocess.run(final_build_args, cwd=run_path, env=ghcup_env).returncode != 0:
+        if subprocess.run(final_build_args, cwd=run_path, env=install_env).returncode != 0:
             raise DistutilsSetupError("Compilation of Haskell module failed")
         # Step four: locate link-time binaries and pass them to the extension
         dynamic_extension = {'linux': 'so', 'mingw64': 'dll', 'apple-darwin': '.dylib'}[sys_os]
