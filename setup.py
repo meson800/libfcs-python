@@ -222,21 +222,18 @@ class haskell_dependent_ext(build_ext, object):
         ext.include_dirs.extend(list(extra_include_dirs))
 
         print(ext.libraries)
+        so_location = Path(self.get_ext_fullpath('libfcs.libfcsso')).resolve().parent
+        print(so_location)
+        distutils_logger.info(f"Copying built dynamic libraries to destination: {str(so_location)}")
+        for so in built_dynamic_libraries:
+            shutil.copy(so, so_location/(so.name))
         if sys_os == 'mingw64':
             # On windows, you link against the helper .a
             built_helper_a = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/libfcs.dll.a'))
             for helper_a in built_helper_a:
                 shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
             ext.libraries.extend([str(lib.name) for lib in built_helper_a])
-            print('Helper A load')
-            print(built_helper_a)
-            print(ext.libraries)
             ext.library_dirs.extend([str(lib.parent.resolve()) for lib in built_helper_a])
-            dll_location = Path(self.get_ext_fullpath('libfcs.libfcsdll')).resolve().parent
-            print(dll_location)
-            distutils_logger.info(f"Copying built DLLs to destination: {str(dll_location)}")
-            for dll in built_dynamic_libraries:
-                shutil.copy(dll, dll_location/(dll.name))
         else:
             # Much nicer on MacOS/Linux
             ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
