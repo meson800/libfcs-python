@@ -17,9 +17,9 @@ jobs:
           submodules: recursive
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: '3.7'
       - name: Install build dependencies
-        run: pip install oldest-supported-numpy
+        run: pip install "oldest-supported-numpy;python_version>'2.7'" "numpy==1.16;python_version<='2.7'"
       - name: Cache GHC stuff
         uses:  actions/cache@v3
         with:
