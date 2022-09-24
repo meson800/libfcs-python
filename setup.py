@@ -253,11 +253,12 @@ class haskell_dependent_ext(build_ext, object):
 
     def get_outputs(self):
         if platform.system() == 'Windows':
-            extra_dll = str(Path(self.get_ext_fullpath('libfcs.libfcsdll')).parent / 'libfcs.dll')
-            return [extra_dll] + super(haskell_dependent_ext, self).get_outputs()
+            so_name = 'libfcs.dll'
+        else:
+            so_name = 'liblibfcs.so'
         
-        return super(haskell_dependent_ext, self).get_outputs()
-        
+        extra_so = str(Path(self.get_ext_fullpath('libfcs.libfcsso')).parent / so_name)
+        return [extra_so] + super(haskell_dependent_ext, self).get_outputs()
         
 
 setup(
