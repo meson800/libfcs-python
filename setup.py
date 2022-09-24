@@ -238,6 +238,10 @@ class haskell_dependent_ext(build_ext, object):
             # Much nicer on MacOS/Linux
             ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
             ext.runtime_library_dirs.extend(list(runtime_dirs))
+        # but need to fix up the rpath on Mac (to later be fixed and packaged by auditwheel)
+        if sys_os == 'apple-darwin':
+            ext.extra_link_args.append(f'-Wl,-rpath,{str(so_location)}')
+
         ext.library_dirs.extend(list(runtime_dirs))
         print(ext.libraries)
         print(ext.library_dirs)
