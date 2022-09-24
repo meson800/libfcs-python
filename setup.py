@@ -211,7 +211,7 @@ class haskell_dependent_ext(build_ext, object):
         if subprocess.run(final_build_args, cwd=run_path, env=install_env).returncode != 0:
             raise DistutilsSetupError("Compilation of Haskell module failed")
         # Step four: locate link-time binaries and pass them to the extension
-        dynamic_extension = {'linux': 'so', 'mingw64': 'dll', 'apple-darwin': '.dylib'}[sys_os]
+        dynamic_extension = {'linux': 'so', 'mingw64': 'dll', 'apple-darwin': 'dylib'}[sys_os]
         built_dynamic_libraries = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob(
             f'**/install/**/*libfcs.{dynamic_extension}'))
         runtime_dirs = {str(f.resolve().parent) for f in built_dynamic_libraries}
@@ -237,7 +237,7 @@ class haskell_dependent_ext(build_ext, object):
                 shutil.copy(so, so_location/(so.name))
         else:
             # Much nicer on MacOS/Linux
-            ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
+            ext.libraries.extend([f.stem[3:] if f.stem[:3] == 'lib' else f.stem for f in built_dynamic_libraries])
             ext.runtime_library_dirs.extend(list(runtime_dirs))
         # but need to fix up the rpath on Mac (to later be fixed and packaged by auditwheel)
         if sys_os == 'apple-darwin':
