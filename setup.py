@@ -254,6 +254,8 @@ class haskell_dependent_ext(build_ext, object):
     def get_outputs(self):
         if platform.system() == 'Windows':
             so_name = 'libfcs.dll'
+        elif platform.system() == 'Darwin':
+            so_name = 'liblibfcs.dylib'
         else:
             so_name = 'liblibfcs.so'
         
