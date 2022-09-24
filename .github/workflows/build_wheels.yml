@@ -3,6 +3,7 @@ name: Build wheels
 on:
   schedule:
     - cron: '0 0 * * *'  # every day at midnight
+  workflow_dispatch:
 
 jobs:
   # From https://stackoverflow.com/a/67527144
