@@ -13,8 +13,8 @@ on:
         default: false
 
 jobs:
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+  test_lint:
+    name: Test and lint on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
