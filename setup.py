@@ -222,11 +222,6 @@ class haskell_dependent_ext(build_ext, object):
         ext.include_dirs.extend(list(extra_include_dirs))
 
         print(ext.libraries)
-        so_location = Path(self.get_ext_fullpath('libfcs.libfcsso')).resolve().parent
-        print(so_location)
-        distutils_logger.info(f"Copying built dynamic libraries to destination: {str(so_location)}")
-        for so in built_dynamic_libraries:
-            shutil.copy(so, so_location/(so.name))
         if sys_os == 'mingw64':
             # On windows, you link against the helper .a
             built_helper_a = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/libfcs.dll.a'))
@@ -234,13 +229,21 @@ class haskell_dependent_ext(build_ext, object):
                 shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
             ext.libraries.extend([str(lib.name) for lib in built_helper_a])
             ext.library_dirs.extend([str(lib.parent.resolve()) for lib in built_helper_a])
+            # Copy dynamic library into position
+            so_location = Path(self.get_ext_fullpath('libfcs.libfcsso')).resolve().parent
+            print(so_location)
+            distutils_logger.info(f"Copying built dynamic libraries to destination: {str(so_location)}")
+            for so in built_dynamic_libraries:
+                shutil.copy(so, so_location/(so.name))
         else:
             # Much nicer on MacOS/Linux
             ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
             ext.runtime_library_dirs.extend(list(runtime_dirs))
         # but need to fix up the rpath on Mac (to later be fixed and packaged by auditwheel)
         if sys_os == 'apple-darwin':
-            ext.extra_link_args.append(f'-Wl,-rpath,{str(so_location)}')
+            ext.extra_link_args.extend(['-Wl', '-rpath', ';'.join(list(runtime_dirs))])
+            for dylib in built_dynamic_libraries:
+                subprocess.run(['install_name_tool', '-id', f'@rpath/{dylib.name}', str(dylib.resolve())])
 
         ext.library_dirs.extend(list(runtime_dirs))
         print(ext.libraries)
@@ -258,14 +261,10 @@ class haskell_dependent_ext(build_ext, object):
     def get_outputs(self):
         if platform.system() == 'Windows':
             so_name = 'libfcs.dll'
-        elif platform.system() == 'Darwin':
-            so_name = 'liblibfcs.dylib'
-        else:
-            so_name = 'liblibfcs.so'
-        
-        extra_so = str(Path(self.get_ext_fullpath('libfcs.libfcsso')).parent / so_name)
-        return [extra_so] + super(haskell_dependent_ext, self).get_outputs()
-        
+            extra_so = str(Path(self.get_ext_fullpath('libfcs.libfcsso')).parent / so_name)
+            return [extra_so] + super(haskell_dependent_ext, self).get_outputs()
+        return super(haskell_dependent_ext, self).get_outputs()
+            
 
 setup(
     name="libfcs",
