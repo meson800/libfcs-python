@@ -1,7 +1,9 @@
 [build-system]
 requires = [
     "setuptools>=45", "setuptools_scm[toml]>=6.2",
-    "oldest-supported-numpy;python_version>'3.7'", "numpy==1.16;python_version<='3.7'"
+    "oldest-supported-numpy;python_version>'3.7' and platform_python_implementation!='PyPy'",
+    "numpy==1.16;python_version<='3.7' and platform_python_implementation!='PyPy'",
+    "numpy>=1.21;platform_python_implementation=='PyPy'",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -11,6 +13,9 @@ test-command = "pytest {package}/tests"
 test-requires = "pytest"
 # Skip 32-bit builds (no Haskell support)
 skip = ["*-win32", "*-manylinux_i686"]
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y gmp-devel ncurses-devel"
 
 [tool.cibuildwheel.windows]
 # Use delvewheel on windows
