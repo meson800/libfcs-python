@@ -5,4 +5,4 @@ prune src/libfcs_ext/hs_submodule/.vscode
 
 prune .git
 prune .vscode
-graft src/libfcs_ext/linux_ghc_build/
+graft src/libfcs_ext/linux_ghc_build
