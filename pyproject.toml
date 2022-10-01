@@ -15,7 +15,7 @@ test-requires = "pytest"
 skip = ["*-win32", "*-manylinux_i686"]
 
 [tool.cibuildwheel.linux]
-before-all = "yum install -y gmp-devel ncurses-devel"
+before-all = "yum install -y gmp-devel ncurses-devel libffi-devel"
 
 [tool.cibuildwheel.windows]
 # Use delvewheel on windows
