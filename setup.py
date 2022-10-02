@@ -42,7 +42,7 @@ with open("README.md" ,"r", encoding='utf8') as fh:
 
 
 libfcs_ext = Extension(
-    '_libfcs_ext',
+    'libfcs._libfcs_ext',
     sources=['src/libfcs_ext/libfcs.c', 'src/libfcs_ext/logicle.c', 'src/libfcs_ext/hyperlog.c'],
     #runtime_library_dirs=['src/libfcs_ext/libfcs/.stack-work/install/47bedf8b/lib'],
 #    libraries=[str(x.name) for x in built_helper_a],
@@ -160,8 +160,7 @@ def init_haskell_tools():
                 raise DistutilsSetupError("Unable to create patched GHC version")
         else:
             distutils_logger.info(f"Using existing patched GHC 8.10.7-fpic")
-    ghcup_env = {**install_env, **{'PATH': os.environ['PATH']+':'+str(hs_scratch/'.ghcup'/'bin')}}
-    return (sys_os, hs_scratch, ghcup_binary, install_env, ghcup_env)
+    return (sys_os, hs_scratch, ghcup_binary, install_env)
 
 
 class PrepareHaskellTools(Command) :
@@ -181,7 +180,7 @@ class haskell_dependent_ext(build_ext, object):
     Inspired by https://stackoverflow.com/a/48641638. My modifications
     to this function are available under CC-BY-SA-4.0
     """
-    haskell_requiring_extensions = ['_libfcs_ext']
+    haskell_requiring_extensions = ['libfcs._libfcs_ext']
     def build_extension(self, ext):
         print(ext.name)
         if ext.name not in self.haskell_requiring_extensions:
@@ -189,7 +188,7 @@ class haskell_dependent_ext(build_ext, object):
             super(haskell_dependent_ext, self).build_extension(ext)
             return
         # We need to build a Haskell-dependent binary!
-        sys_os, hs_scratch, ghcup_binary, install_env, ghcup_env = init_haskell_tools()
+        sys_os, hs_scratch, ghcup_binary, install_env = init_haskell_tools()
         # Step three: build the project
         extra_ghcup_args = () if platform.system() != 'Linux' else ('--ghc', '8.10.7-fpic')
         extra_stack_args = () if platform.system() != 'Linux' else ('--system-ghc', '--no-install-ghc') # Use the fpic GHC on Linux
@@ -200,36 +199,72 @@ class haskell_dependent_ext(build_ext, object):
             distutils_logger.info(f'Installed GHCs: {installed_ghcs}')
             distutils_logger.info('Loading desired ghc that reports version: ' +
                 subprocess.run([str(ghcup_binary), 'run', '--stack', '2.7.5', *extra_ghcup_args, '--', 'ghc', '--version'],
-                env=ghcup_env, capture_output=True).stdout.decode()
+                env=install_env, capture_output=True).stdout.decode()
             )
         final_build_args = [str(ghcup_binary), 'run',
                         '--stack', '2.7.5', *extra_ghcup_args, # Load tools
-                        '--', 'stack', 'build', '--force-dirty', '--stack-root', str(hs_scratch/'.stack'),
+                        '--', 'stack', 'build', '--force-dirty', '--stack-root', str((hs_scratch/'.stack').resolve()),
                         *extra_stack_args]
         run_path = Path('src/libfcs_ext/hs_submodule').resolve()
         distutils_logger.info(f"About to run Haskell module build with args: {str(final_build_args)} in {str(run_path)}")
         
-        if subprocess.run(final_build_args, cwd=run_path, env=ghcup_env).returncode != 0:
+        if subprocess.run(final_build_args, cwd=run_path, env=install_env).returncode != 0:
             raise DistutilsSetupError("Compilation of Haskell module failed")
         # Step four: locate link-time binaries and pass them to the extension
-        dynamic_extension = {'linux': 'so', 'windows': 'dll'}[sys_os]
+        dynamic_extension = {'linux': 'so', 'mingw64': 'dll', 'apple-darwin': 'dylib'}[sys_os]
         built_dynamic_libraries = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob(
             f'**/install/**/*libfcs.{dynamic_extension}'))
-        print(built_dynamic_libraries)
         runtime_dirs = {str(f.resolve().parent) for f in built_dynamic_libraries}
         header_files = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/install/**/fcs.h'))
         extra_include_dirs = {str(f.parent) for f in header_files}
+        print(built_dynamic_libraries)
+
         ext.include_dirs.extend(list(extra_include_dirs))
-        ext.runtime_library_dirs.extend(list(runtime_dirs))
+
         print(ext.libraries)
-        ext.libraries.extend([f.stem.removeprefix('lib') for f in built_dynamic_libraries])
+        if sys_os == 'mingw64':
+            # On windows, you link against the helper .a
+            built_helper_a = list(Path('src/libfcs_ext/hs_submodule/.stack-work').glob('**/libfcs.dll.a'))
+            for helper_a in built_helper_a:
+                shutil.copy(helper_a, helper_a.parent / (helper_a.name + '.lib'))
+            ext.libraries.extend([str(lib.name) for lib in built_helper_a])
+            ext.library_dirs.extend([str(lib.parent.resolve()) for lib in built_helper_a])
+            # Copy dynamic library into position
+            so_location = Path(self.get_ext_fullpath('libfcs.libfcsso')).resolve().parent
+            print(so_location)
+            distutils_logger.info(f"Copying built dynamic libraries to destination: {str(so_location)}")
+            for so in built_dynamic_libraries:
+                shutil.copy(so, so_location/(so.name))
+        else:
+            # Much nicer on MacOS/Linux
+            ext.libraries.extend([f.stem[3:] if f.stem[:3] == 'lib' else f.stem for f in built_dynamic_libraries])
+            ext.runtime_library_dirs.extend(list(runtime_dirs))
+        # but need to fix up the rpath on Mac (to later be fixed and packaged by auditwheel)
+        if sys_os == 'apple-darwin':
+            ext.extra_link_args.extend(['-Wl', '-rpath', ';'.join(list(runtime_dirs))])
+            for dylib in built_dynamic_libraries:
+                subprocess.run(['install_name_tool', '-id', f'@rpath/{dylib.name}', str(dylib.resolve())])
+
         ext.library_dirs.extend(list(runtime_dirs))
         print(ext.libraries)
         print(ext.library_dirs)
         
         # Make the C part of the library as normal
         super(haskell_dependent_ext, self).build_extension(ext)
-        
+        print(dir(self))
+        print(self.get_outputs())
+        print(self.get_ext_filename('libfcs'))
+        print(self.get_ext_fullpath('libfcs'))
+        print(self.get_ext_filename('libfcs._libfcs_ext'))
+        print(self.get_ext_fullpath('libfcs._libfcs_ext'))
+
+    def get_outputs(self):
+        if platform.system() == 'Windows':
+            so_name = 'libfcs.dll'
+            extra_so = str(Path(self.get_ext_fullpath('libfcs.libfcsso')).parent / so_name)
+            return [extra_so] + super(haskell_dependent_ext, self).get_outputs()
+        return super(haskell_dependent_ext, self).get_outputs()
+            
 
 setup(
     name="libfcs",
@@ -243,7 +278,8 @@ setup(
     long_description_content_type="text/markdown",
     packages=["libfcs"],
     ext_modules=[libfcs_ext],
-    package_dir={'': 'src'},
+    package_dir={'': 'src',},
+    #package_data={'libfcs': ['libfcs.dll'] if platform.system() == 'Windows' else []},
     #data_files=[('', [str(x) for x in built_dynamic_libraries])],
     cmdclass = {'build_ext': haskell_dependent_ext, 'prepare_haskell': PrepareHaskellTools},
     entry_points={
@@ -256,6 +292,6 @@ setup(
         ],
     python_requires='>=3.7',
     install_requires=[
-        "numpy"
+        "numpy>=1.16" # Need numpy 1.16 for constant dimension length gufuncs (https://numpy.org/doc/stable/release/1.16.0-notes.html#generalized-ufunc-signatures-now-allow-fixed-size-dimensions)
     ]
 )

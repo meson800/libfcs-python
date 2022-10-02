@@ -3,4 +3,4 @@
 
 double logicle(double x, double T, double W, double M, double A, double tol);
 
-#endif _LIBFCS_EXT_LOGICLE
+#endif

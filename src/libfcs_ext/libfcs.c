@@ -1,5 +1,5 @@
 #define PY_SSIZE_T_CLEAN
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#define NPY_NO_DEPRECATED_API NPY_1_13_API_VERSION
 #include <math.h>
 #include <assert.h>
 
@@ -132,7 +132,7 @@ static PyObject* FCSObject_get_n_events_aborted(FCSObject *self, void *_closure)
 static PyObject* get_optional_string(OptionalString* ostr, const char* error_msg) {
     if (ostr->present) {
         PyObject* str = PyUnicode_DecodeUTF8(
-            ostr->string.buffer, ostr->string.length, "strict"
+            (char*)ostr->string.buffer, ostr->string.length, "strict"
         );
         if (str == NULL) {
             PyErr_SetString(PyExc_ValueError, error_msg);
@@ -224,7 +224,7 @@ static PyObject* FCSObject_get_well_id(FCSObject *self, void *_closure) {
 
 static PyObject* FCSObject_get_uncompensated(FCSObject *self, void *_closure) {
     npy_intp dimensions[2] = {self->file->uncompensated.n_rows, self->file->uncompensated.n_cols};
-    PyArrayObject* np_array = PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->uncompensated.data);
+    PyArrayObject* np_array = (PyArrayObject*)PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->uncompensated.data);
     if (np_array == NULL) {
         return NULL;
     }
@@ -234,7 +234,7 @@ static PyObject* FCSObject_get_uncompensated(FCSObject *self, void *_closure) {
         Py_DECREF(np_array);
         return NULL;
     }
-    return np_array;
+    return (PyObject*)np_array;
 }
 
 static PyObject* FCSObject_get_compensated(FCSObject *self, void *_closure) {
@@ -301,6 +301,7 @@ static PyGetSetDef FCSObject_getsetters[] = {
             "Well identifier", NULL},
     {NULL} /* Sentinel */
 };
+
 
 static PyTypeObject FCSType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -380,6 +381,7 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
 /************** ufuncs for fast Numpy processing *******************/
 #define TO_D(x) (*((double*)(x)))
 #define TO_BOOL(x) (*((npy_bool*)(x)))
+static void *null_data[1] = {NULL};
 static void double_flin(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
 {
     npy_intp n = dimensions[0];
@@ -502,7 +504,7 @@ static PyMethodDef FCSMethods[] = {
     {NULL, NULL, 0, NULL}
 };
 
-static void double_polygon(char **args, npy_intp *dimensions, const npy_intp *steps, void *data)
+static void double_polygon(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
 {
     // To understand the madness, use
     // https://github.com/numpy/numpy/blob/aeb39dfb3566e853a09082bfe9438ef118916be7/numpy/core/src/umath/matmul.c.src
@@ -521,9 +523,9 @@ static void double_polygon(char **args, npy_intp *dimensions, const npy_intp *st
     npy_intp vertex_step_m = steps[5], vertex_step_2 = steps[6];
     npy_intp output_step_n = steps[7];
     char *outer_event = args[0], *outer_vertex = args[1], *outer_output = args[2];
-    //printf("outer: %d, n: %d, m: %d\n\toes: %d, ovs: %d, oos: %d\n\tesn: %d, es2: %d, vsm: %d, vs2: %d, osn: %d\n",
-    //    outer, n, m, outer_event_step, outer_vertex_step, outer_output_step, event_step_n, event_step_2,
-    //    vertex_step_m, vertex_step_2, output_step_n);
+    printf("outer: %d, n: %d, m: %d\n\toes: %d, ovs: %d, oos: %d\n\tesn: %d, es2: %d, vsm: %d, vs2: %d, osn: %d\n",
+        outer, n, m, outer_event_step, outer_vertex_step, outer_output_step, event_step_n, event_step_2,
+        vertex_step_m, vertex_step_2, output_step_n);
     
     for (npy_intp outer_idx = 0; outer_idx < outer; ++outer_idx,
         outer_event += outer_event_step, outer_vertex += outer_vertex_step,
@@ -558,7 +560,10 @@ static void double_polygon(char **args, npy_intp *dimensions, const npy_intp *st
                 // and if x_1 <= e_x < x_2 (for x_1 < x_2)
                 // We use this asymmetric condition to symmetry-break the case
                 // where we go through a vertex.
-                if ((min(x_1,x_2) < e_x && max(x_1,x_2) >= e_x) && (y_1 >= e_y || y_2 >= e_y)) {
+                if ((
+                        (x_1 < e_x && x_2 >= e_x) ||
+                        (x_2 < e_x && x_1 >= e_x)
+                    ) && (y_1 >= e_y || y_2 >= e_y)) {
                     // Linearly interpolate to see if this is a true intersection
                     TO_BOOL(output) ^= (y_1 + (e_x - x_1)/(x_2 - x_1) * (y_2 - y_1) > e_y);
                 }
@@ -582,21 +587,27 @@ static struct PyModuleDef libfcsmodule = {
 PyMODINIT_FUNC
 PyInit__libfcs_ext(void)
 {
+    puts("About to init");
     if (libfcs_init()) {
         PyObject *module;
+        puts("Haskell inited");
 
         if (PyType_Ready(&FCSType) < 0) {
             return NULL;
         }
         
+        puts("About to create Py module");
         module = PyModule_Create(&libfcsmodule);
         if (module == NULL) {
             return NULL;
         }
+        puts("Py module created");
 
         // Init the numpy functions
         import_array();
+        import_ufunc();
         import_umath();
+        puts("Numpy inited");
 
         // Init the FCS type
         Py_INCREF(&FCSType);
@@ -605,51 +616,58 @@ PyInit__libfcs_ext(void)
             Py_DECREF(module);
             return NULL;
         }
+        puts("Created the FCS type");
 
         // Init the Numpy ufuncs
         PyObject *d = PyModule_GetDict(module);
         // tunable linear
-        PyObject *flin = PyUFunc_FromFuncAndData(flin_func, NULL, flin_types, 1, 3, 1,
+        PyObject *flin = PyUFunc_FromFuncAndData(flin_func, null_data, flin_types, 1, 3, 1,
                                                  PyUFunc_None, "flin",
                                                  "flin_docstring", 0);
         PyDict_SetItemString(d, "flin", flin);
         Py_DECREF(flin);
+        puts("Created flin");
         // tunable log
-        PyObject *flog = PyUFunc_FromFuncAndData(flog_func, NULL, flog_types, 1, 3, 1,
+        PyObject *flog = PyUFunc_FromFuncAndData(flog_func, null_data, flog_types, 1, 3, 1,
                                                  PyUFunc_None, "flog",
                                                  "flog_docstring", 0);
         PyDict_SetItemString(d, "flog", flog);
         Py_DECREF(flog);
+        puts("Created flog");
 
         // tunable asinh
-        PyObject *fasinh = PyUFunc_FromFuncAndData(fasinh_func, NULL, fasinh_types, 1, 4, 1,
+        PyObject *fasinh = PyUFunc_FromFuncAndData(fasinh_func, null_data, fasinh_types, 1, 4, 1,
                                                  PyUFunc_None, "fasinh",
                                                  "fasinh_docstring", 0);
         PyDict_SetItemString(d, "fasinh", fasinh);
         Py_DECREF(fasinh);
+        puts("Created asinh");
 
         // logicle
-        PyObject *logicle = PyUFunc_FromFuncAndData(logicle_func, NULL, logicle_types, 1, 6, 1,
+        PyObject *logicle = PyUFunc_FromFuncAndData(logicle_func, null_data, logicle_types, 1, 6, 1,
                                                  PyUFunc_None, "logicle",
                                                  "logicle_docstring", 0);
         PyDict_SetItemString(d, "logicle", logicle);
         Py_DECREF(logicle);
+        puts("Created logicle");
 
         // logicle
-        PyObject *hyperlog = PyUFunc_FromFuncAndData(hyperlog_func, NULL, hyperlog_types, 1, 6, 1,
+        PyObject *hyperlog = PyUFunc_FromFuncAndData(hyperlog_func, null_data, hyperlog_types, 1, 6, 1,
                                                  PyUFunc_None, "hyperlog",
                                                  "hyperlog_docstring", 0);
         PyDict_SetItemString(d, "hyperlog", hyperlog);
         Py_DECREF(hyperlog);
+        puts("Created hyperlog");
 
         // polygon gate
         PyObject *polygon_gate = PyUFunc_FromFuncAndDataAndSignature(
-            polygon_gate_func, NULL, polygon_gate_types, 1, 2, 1,
+            polygon_gate_func, null_data, polygon_gate_types, 1, 2, 1,
             PyUFunc_None, "polygon_gate",
             "polygon_gate_docstring", 0,
             polygon_gate_signature);
         PyDict_SetItemString(d, "polygon_gate", polygon_gate);
         Py_DECREF(polygon_gate);
+        puts("Created polygon gate");
 
         return module;
     }
