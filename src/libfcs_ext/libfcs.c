@@ -13,12 +13,74 @@
 #include "logicle.h"
 #include "hyperlog.h"
 
+// Overall helper functions
+static PyObject* get_optional_string(OptionalString* ostr, const char* error_msg) {
+    if (ostr->present) {
+        PyObject* str = PyUnicode_DecodeUTF8(
+            (char*)ostr->string.buffer, ostr->string.length, "strict"
+        );
+        if (str == NULL) {
+            PyErr_SetString(PyExc_ValueError, error_msg);
+        }
+        return str;
+    }
+    Py_RETURN_NONE;
+}
+
+// Forward declarations needed
+typedef struct FCSObject FCSObject;
+// Main object structs
 typedef struct {
     PyObject_HEAD
     /* Type-specific fields */
     FCSObject* parent;
-    int param_idx;
+    Py_ssize_t param_idx;
 } FCSParameter;
+
+typedef struct {
+    PyObject_HEAD
+    /* Type-specific fields */
+    FCSObject* parent;
+} FCSParameterList;
+
+typedef struct FCSObject {
+    PyObject_HEAD
+    /* Type-specific fields */
+    FCSFile* file;
+    FCSParameterList* event_params;
+} FCSObject;
+
+
+static void FCSParameter_dealloc(FCSParameter *self) {
+    Py_DECREF((PyObject*)self->parent);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject* FCSParameter_get_short_name(FCSParameter *self, void *_closure) {
+    StringUTF8* str = &self->parent->file->metadata.parameters[self->param_idx].short_name;
+    PyObject* p_str = PyUnicode_DecodeUTF8(
+        (char*)str->buffer, str->length, "strict"
+    );
+    if (p_str == NULL) {
+        PyErr_SetString(PyExc_ValueError, "Unable to decode parameter short name");
+    }
+    return p_str;
+}
+
+static PyObject* FCSParameter_get_name(FCSParameter *self, void *_closure) {
+    return get_optional_string(
+        &self->parent->file->metadata.parameters[self->param_idx].name,
+        "Unable to decode parameter name"
+    );
+}
+
+static PyGetSetDef FCSParameter_getsetters[] = {
+        {"name", (getter) FCSParameter_get_name, NULL,
+            "Full channel name", NULL},
+        {"short_name", (getter) FCSParameter_get_short_name, NULL,
+            "Short channel name", NULL},
+    {NULL} /* Sentinel */
+};
 
 static PyTypeObject FCSParameter_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -26,19 +88,12 @@ static PyTypeObject FCSParameter_Type = {
     .tp_doc = PyDoc_STR("FCS parameter"),
     .tp_basicsize = sizeof(FCSParameter),
     .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_FINALIZE | Py_TPFLAGS_DISALLOW_INSTANTIATION,
-    .tp_new = FCSObject_new,
-    .tp_dealloc = FCSObject_dealloc,
-    .tp_getset = FCSObject_getsetters,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_FINALIZE,
+    .tp_dealloc = FCSParameter_dealloc,
+    .tp_getset = FCSParameter_getsetters,
 };
 
-typedef struct {
-    PyObject_HEAD
-    /* Type-specific fields */
-    FCSFile* file;
-} FCSObject;
-
-static PyObject * FCSParameter_factory(FCSObject* parent, int param_idx) {
+static PyObject * FCSParameter_factory(FCSObject* parent, Py_ssize_t param_idx) {
     FCSParameter *self;
     self = (FCSParameter*) FCSParameter_Type.tp_alloc(&FCSParameter_Type, 0);
     if (self != NULL) {
@@ -49,19 +104,18 @@ static PyObject * FCSParameter_factory(FCSObject* parent, int param_idx) {
     return (PyObject *) self;
 }
 
-typedef struct {
-    PyObject_HEAD
-    /* Type-specific fields */
-    FCSObject* parent;
-} FCSParameterList;
 
 static Py_ssize_t FCSParameterListLength(PyObject *self) {
     FCSParameterList* object = (FCSParameterList*) self;
-    return object->parent->file->n_parameters;
+    return object->parent->file->metadata.n_parameters;
 }
 
 static PyObject* FCSParameterListGetItem(PyObject *self, Py_ssize_t i) {
     FCSParameterList* object = (FCSParameterList*) self;
+    // Bounds check
+    if (i >= object->parent->file->metadata.n_parameters) {
+        return NULL;
+    }
     return FCSParameter_factory(object->parent, i);
 }
 
@@ -70,7 +124,7 @@ static PySequenceMethods FCSParameterListSeqMethods = {
     .sq_item = FCSParameterListGetItem,
 };
 
-static int FCSParameterList_traverse(FCSParamterList* self, visitproc visit, void *arg) {
+static int FCSParameterList_traverse(FCSParameterList* self, visitproc visit, void *arg) {
     Py_VISIT(self->parent);
     return 0;
 }
@@ -82,16 +136,18 @@ static  void FCSParameterList_dealloc(FCSParameterList *self) {
 }
 
 static PyTypeObject FCSParameterList_Type = {
-    PyVarObject_HEAD_INIT(NULL, )
-    .tp_name = "_libfcs_ext.ParameterList`"
+    PyVarObject_HEAD_INIT(NULL,0)
+    .tp_name = "_libfcs_ext.ParameterList",
     .tp_doc = PyDoc_STR("FCS Parameter list"),
     .tp_basicsize = sizeof(FCSParameterList),
     .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_DISALLOW_INSTANTIATION,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_new = NULL,
     .tp_dealloc = FCSParameterList_dealloc,
     .tp_traverse = FCSParameterList_traverse,
     .tp_as_sequence = &FCSParameterListSeqMethods,
 };
+
 
 static PyObject * FCSObject_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     static char *kwlist[] = {"filename", NULL};
@@ -113,13 +169,29 @@ static PyObject * FCSObject_new(PyTypeObject *type, PyObject *args, PyObject *kw
         self->file = load_FCS(filename);
 
         Py_DECREF(filename_bytes);
+
+        puts("About to create a ParameterList");
+        self->event_params = (FCSParameterList*)FCSParameterList_Type.tp_alloc(&FCSParameterList_Type, 0);
+        puts("finished calling tp_alloc");
+        if (self->event_params != NULL) {
+            Py_INCREF(self);
+            self->event_params->parent = self;
+            puts("Created parameter list");
+        }
     }
     return (PyObject *) self;
 }
 
 static void FCSObject_dealloc(FCSObject *self) {
     free_FCS(self->file);
+    PyObject_GC_UnTrack(self);
+    Py_CLEAR(self->event_params);
     Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static int FCSObject_traverse(FCSObject* self, visitproc visit, void *arg) {
+    Py_VISIT(self->event_params);
+    return 0;
 }
 
 static PyObject* FCSObject_get_n_events_aborted(FCSObject *self, void *_closure) {
@@ -129,18 +201,6 @@ static PyObject* FCSObject_get_n_events_aborted(FCSObject *self, void *_closure)
     Py_RETURN_NONE;
 }
 
-static PyObject* get_optional_string(OptionalString* ostr, const char* error_msg) {
-    if (ostr->present) {
-        PyObject* str = PyUnicode_DecodeUTF8(
-            (char*)ostr->string.buffer, ostr->string.length, "strict"
-        );
-        if (str == NULL) {
-            PyErr_SetString(PyExc_ValueError, error_msg);
-        }
-        return str;
-    }
-    Py_RETURN_NONE;
-}
 
 static PyObject* FCSObject_get_acquire_time(FCSObject *self, void *_closure) {
     return get_optional_string(&self->file->metadata.acquire_time, "Unable to decode acquisition time");
@@ -237,9 +297,14 @@ static PyObject* FCSObject_get_uncompensated(FCSObject *self, void *_closure) {
     return (PyObject*)np_array;
 }
 
+static PyObject* FCSObject_get_parameters(FCSObject* self, void *_closure) {
+    Py_INCREF(self->event_params);
+    return (PyObject*)self->event_params;
+}
+
 static PyObject* FCSObject_get_compensated(FCSObject *self, void *_closure) {
     npy_intp dimensions[2] = {self->file->compensated.n_rows, self->file->compensated.n_cols};
-    PyArrayObject* np_array = PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->compensated.data);
+    PyArrayObject* np_array = (PyArrayObject*)PyArray_SimpleNewFromData(2, dimensions, NPY_DOUBLE, self->file->compensated.data);
     if (np_array == NULL) {
         return NULL;
     }
@@ -249,10 +314,12 @@ static PyObject* FCSObject_get_compensated(FCSObject *self, void *_closure) {
         Py_DECREF(np_array);
         return NULL;
     }
-    return np_array;
+    return (PyObject*)np_array;
 }
 
 static PyGetSetDef FCSObject_getsetters[] = {
+        {"parameters", (getter) FCSObject_get_parameters, NULL,
+            "Event parameters", NULL},
         {"uncompensated", (getter) FCSObject_get_uncompensated, NULL,
             "Uncompensated events", NULL},
         {"compensated", (getter) FCSObject_get_compensated, NULL,
@@ -309,9 +376,10 @@ static PyTypeObject FCSType = {
     .tp_doc = PyDoc_STR("FCS object"),
     .tp_basicsize = sizeof(FCSObject),
     .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_FINALIZE,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_FINALIZE | Py_TPFLAGS_HAVE_GC,
     .tp_new = FCSObject_new,
     .tp_dealloc = FCSObject_dealloc,
+    .tp_traverse = FCSObject_traverse,
     .tp_getset = FCSObject_getsetters,
 };
 
@@ -327,6 +395,7 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
     PyBytes_AsStringAndSize(filename_bytes, &filename, &filename_len);
     FCSFile* fcs = load_FCS(filename);
 
+    /*
     printf("Loaded FCS file with %zd parameters and %zd events\n", fcs->compensated.n_cols, fcs->compensated.n_rows);
     if (fcs->metadata.comment.present) {
         printf("\t%.*s\n",
@@ -334,7 +403,7 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
                 fcs->metadata.comment.string.buffer
         );
     }
-    printf("\tmode=%d\n\tdatatype=%d\n", fcs->metadata.mode, fcs->metadata.datatype);
+    printf("\tmode=%Id\n\tdatatype=%Id\n", fcs->metadata.mode, fcs->metadata.datatype);
     // Print the parameters
     puts("\tParameters:");
     for (int i = 0; i < fcs->metadata.n_parameters; ++i) {
@@ -362,7 +431,7 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
 
     // Print extra keyvals
 
-    printf("\n\t%d extra keyvals:\n", fcs->metadata.extra_keyvals.n_vals);
+    printf("\n\t%Id extra keyvals:\n", fcs->metadata.extra_keyvals.n_vals);
     for (int i = 0; i < fcs->metadata.extra_keyvals.n_vals; ++i) {
         printf("\t\t%.*s: %.*s\n",
             fcs->metadata.extra_keyvals.items[i].key.length,
@@ -372,6 +441,7 @@ static PyObject* loadFCS(PyObject *self, PyObject *args) {
         );
     }
 
+    */
     Py_DECREF(filename_bytes);
 
 
@@ -523,7 +593,7 @@ static void double_polygon(char **args, const npy_intp *dimensions, const npy_in
     npy_intp vertex_step_m = steps[5], vertex_step_2 = steps[6];
     npy_intp output_step_n = steps[7];
     char *outer_event = args[0], *outer_vertex = args[1], *outer_output = args[2];
-    printf("outer: %d, n: %d, m: %d\n\toes: %d, ovs: %d, oos: %d\n\tesn: %d, es2: %d, vsm: %d, vs2: %d, osn: %d\n",
+    printf("outer: %Id, n: %Id, m: %Id\n\toes: %Id, ovs: %Id, oos: %Id\n\tesn: %Id, es2: %Id, vsm: %Id, vs2: %Id, osn: %Id\n",
         outer, n, m, outer_event_step, outer_vertex_step, outer_output_step, event_step_n, event_step_2,
         vertex_step_m, vertex_step_2, output_step_n);
     
@@ -592,7 +662,14 @@ PyInit__libfcs_ext(void)
         PyObject *module;
         puts("Haskell inited");
 
+        // Init various types
         if (PyType_Ready(&FCSType) < 0) {
+            return NULL;
+        }
+        if (PyType_Ready(&FCSParameterList_Type) < 0) {
+            return NULL;
+        }
+        if (PyType_Ready(&FCSParameter_Type) < 0) {
             return NULL;
         }
         
@@ -609,7 +686,7 @@ PyInit__libfcs_ext(void)
         import_umath();
         puts("Numpy inited");
 
-        // Init the FCS type
+        // Init the various types
         Py_INCREF(&FCSType);
         if (PyModule_AddObject(module, "FCS", (PyObject*) &FCSType) < 0) {
             Py_DECREF(&FCSType);
@@ -617,6 +694,26 @@ PyInit__libfcs_ext(void)
             return NULL;
         }
         puts("Created the FCS type");
+
+        /* Don't expose the ParameterList and Parameter types; users cannot create them
+        Py_INCREF(&FCSParameterList_Type);
+        if (PyModule_AddObject(module, "ParameterList", (PyObject*) &FCSParameterList_Type) < 0) {
+            Py_DECREF(&FCSParameterList_Type);
+            Py_DECREF(module);
+            return NULL;
+        }
+        puts("Created the ParameterList type");
+
+        Py_INCREF(&FCSParameter_Type);
+        if (PyModule_AddObject(module, "Parameter", (PyObject*) &FCSParameter_Type) < 0) {
+            Py_DECREF(&FCSParameter_Type);
+            Py_DECREF(module);
+            return NULL;
+        }
+        puts("Created the Parameter type");
+        */
+
+
 
         // Init the Numpy ufuncs
         PyObject *d = PyModule_GetDict(module);
