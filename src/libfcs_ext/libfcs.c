@@ -40,7 +40,7 @@ static PyObject* get_optional_float(OptionalFloat* oflt, const char* error_msg) 
 
 static PyObject* get_optional_int(OptionalInt64* oint, const char* error_msg) {
     if (oint->present) = {
-        PyObject* p_int = PyLong_FromLong(oint->value);
+        PyObject* p_int = PyLong_FromLongLong(oint->value);
         if (p_int == NULL) {
             PyErr_SetString(PyExc_ValueError, error_msg);
         }
