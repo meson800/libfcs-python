@@ -28,7 +28,7 @@ static PyObject* get_optional_string(OptionalString* ostr, const char* error_msg
 }
 
 static PyObject* get_optional_float(OptionalFloat* oflt, const char* error_msg) {
-    if (oflt->present) = {
+    if (oflt->present){
         PyObject* flt = PyFloat_FromDouble(oflt->value);
         if (flt == NULL) {
             PyErr_SetString(PyExc_ValueError, error_msg);
@@ -39,7 +39,7 @@ static PyObject* get_optional_float(OptionalFloat* oflt, const char* error_msg) 
 }
 
 static PyObject* get_optional_int(OptionalInt64* oint, const char* error_msg) {
-    if (oint->present) = {
+    if (oint->present){
         PyObject* p_int = PyLong_FromLongLong(oint->value);
         if (p_int == NULL) {
             PyErr_SetString(PyExc_ValueError, error_msg);
