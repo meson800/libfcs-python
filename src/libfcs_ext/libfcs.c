@@ -27,6 +27,28 @@ static PyObject* get_optional_string(OptionalString* ostr, const char* error_msg
     Py_RETURN_NONE;
 }
 
+static PyObject* get_optional_float(OptionalFloat* oflt, const char* error_msg) {
+    if (oflt->present) = {
+        PyObject* flt = PyFloat_FromDouble(oflt->value);
+        if (flt == NULL) {
+            PyErr_SetString(PyExc_ValueError, error_msg);
+        }
+        return flt;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject* get_optional_int(OptionalInt64* oint, const char* error_msg) {
+    if (oint->present) = {
+        PyObject* p_int = PyLong_FromLong(oint->value);
+        if (p_int == NULL) {
+            PyErr_SetString(PyExc_ValueError, error_msg);
+        }
+        return p_int;
+    }
+    Py_RETURN_NONE;
+}
+
 // Forward declarations needed
 typedef struct FCSObject FCSObject;
 // Main object structs
