@@ -245,7 +245,7 @@ static PyObject* FCSObject_get_comment(FCSObject *self, void *_closure) {
 }
 
 static PyObject* FCSObject_get_cytometer_type(FCSObject *self, void *_closure) {
-    return get_optional_string(&self->file->metadata.cytometer_serial_number, "Unable to decode cytometer type");
+    return get_optional_string(&self->file->metadata.cytometer_type, "Unable to decode cytometer type");
 }
 
 static PyObject* FCSObject_get_cytometer_sn(FCSObject *self, void *_closure) {
@@ -352,7 +352,7 @@ static PyGetSetDef FCSObject_getsetters[] = {
             "Acquisition start time as a string", NULL},
         {"acquire_end_time_str", (getter) FCSObject_get_acquire_end_time, NULL,
             "Acquisition end time as a string", NULL},
-        {"acquire_date", (getter) FCSObject_get_acquire_date, NULL,
+        {"acquire_date_str", (getter) FCSObject_get_acquire_date, NULL,
             "Acquisition date as a string", NULL},
         {"cells", (getter) FCSObject_get_cells, NULL,
             "Cell description", NULL},
