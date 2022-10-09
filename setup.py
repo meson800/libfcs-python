@@ -268,7 +268,7 @@ class haskell_dependent_ext(build_ext, object):
 
 setup(
     name="libfcs",
-    version="0.0.1",
+    version="0.0.2",
     url='https://github.com/meson800/libfcs-python',
     author="Christopher Johnstone",
     author_email="meson800@gmail.com",
