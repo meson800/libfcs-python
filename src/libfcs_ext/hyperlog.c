@@ -41,7 +41,7 @@ void free_hyperlog_cache(struct HyperlogParamCache* params) {
     free(params);
 }
 
-double inverse_hyperlog_param(double y, struct HyperlogParams* params);
+static double inverse_hyperlog_param(double y, struct HyperlogParams* params);
 
 static void generate_hyperlog_params(double T, double W, double M, double A, int slot, struct HyperlogParamCache* cache) {
     // Generate parameters into a given slot
