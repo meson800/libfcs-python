@@ -494,6 +494,26 @@ static void double_flin(char **args, const npy_intp *dimensions, const npy_intp 
 PyUFuncGenericFunction flin_func[1] = {&double_flin};
 static char flin_types[4] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
 
+static void double_inv_flin(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_A = args[2];
+    char *out = args[3];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_A_step = steps[2];
+    npy_intp out_step = steps[3];
+
+    for (npy_intp i = 0; i < n; ++i) {
+        TO_D(out) = TO_D(in) * (TO_D(in_T) + TO_D(in_A)) - TO_D(in_A);
+
+        in += in_step;
+        in_T += in_T_step;
+        in_A += in_A_step;
+        out += out_step;
+    }
+}
+PyUFuncGenericFunction inv_flin_func[1] = {&double_inv_flin};
+static char inv_flin_types[4] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
 static void double_flog(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
 {
     npy_intp n = dimensions[0];
@@ -518,6 +538,26 @@ static void double_flog(char **args, const npy_intp *dimensions, const npy_intp 
 }
 PyUFuncGenericFunction flog_func[1] = {&double_flog};
 static char flog_types[4] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
+static void double_inv_flog(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_M = args[2];
+    char *out = args[3];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_M_step = steps[2];
+    npy_intp out_step = steps[3];
+
+    for (npy_intp i = 0; i < n; ++i) {
+        TO_D(out) = pow(10.0, (TO_D(in) - 1.0) * TO_D(in_M)) * TO_D(in_T);
+
+        in += in_step;
+        in_T += in_T_step;
+        in_M += in_M_step;
+        out += out_step;
+    }
+}
+PyUFuncGenericFunction inv_flog_func[1] = {&double_inv_flog};
+static char inv_flog_types[4] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
 
 static void double_fasinh(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
 {
@@ -545,6 +585,33 @@ static void double_fasinh(char **args, const npy_intp *dimensions, const npy_int
 PyUFuncGenericFunction fasinh_func[1] = {&double_fasinh};
 static char fasinh_types[5] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
 
+static void double_inv_fasinh(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_M = args[2], *in_A = args[3];
+    char *out = args[4];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_M_step = steps[2], in_A_step = steps[3];
+    npy_intp out_step = steps[4];
+
+    double ln_10 = log(10.0);
+
+    for (npy_intp i = 0; i < n; ++i) {
+        TO_D(out) = (
+            TO_D(in_T) * sinh(
+                            ln_10 * (-TO_D(in_A) + (TO_D(in_A) + TO_D(in_M)) * TO_D(in))
+            ) / sinh(ln_10 * TO_D(in_M))
+        );
+
+        in += in_step;
+        in_T += in_T_step;
+        in_M += in_M_step;
+        in_A += in_A_step;
+        out += out_step;
+    }
+}
+PyUFuncGenericFunction inv_fasinh_func[1] = {&double_inv_fasinh};
+static char inv_fasinh_types[5] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
 static void double_logicle(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
 {
     npy_intp n = dimensions[0];
@@ -553,8 +620,10 @@ static void double_logicle(char **args, const npy_intp *dimensions, const npy_in
     npy_intp in_step = steps[0], in_T_step = steps[1], in_W_step = steps[2], in_M_step = steps[3], in_A_step = steps[4], in_tol_step = steps[5];
     npy_intp out_step = steps[6];
 
+    struct LogicleParamCache* cache = init_logicle_cache();
+
     for (npy_intp i = 0; i < n; ++i) {
-        TO_D(out) = logicle(TO_D(in), TO_D(in_T), TO_D(in_W), TO_D(in_M), TO_D(in_A), TO_D(in_tol));
+        TO_D(out) = logicle(TO_D(in), TO_D(in_T), TO_D(in_W), TO_D(in_M), TO_D(in_A), TO_D(in_tol), cache);
 
         in += in_step;
         in_T += in_T_step;
@@ -564,9 +633,35 @@ static void double_logicle(char **args, const npy_intp *dimensions, const npy_in
         in_tol += in_tol_step;
         out += out_step;
     }
+    free_logicle_cache(cache);
 }
 PyUFuncGenericFunction logicle_func[1] = {&double_logicle};
 static char logicle_types[7] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
+static void double_inv_logicle(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_W = args[2], *in_M = args[3], *in_A = args[4];
+    char *out = args[5];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_W_step = steps[2], in_M_step = steps[3], in_A_step = steps[4];
+    npy_intp out_step = steps[5];
+
+    struct LogicleParamCache* cache = init_logicle_cache();
+
+    for (npy_intp i = 0; i < n; ++i) {
+        TO_D(out) = inverse_logicle(TO_D(in), TO_D(in_T), TO_D(in_W), TO_D(in_M), TO_D(in_A), cache);
+
+        in += in_step;
+        in_T += in_T_step;
+        in_W += in_W_step;
+        in_M += in_M_step;
+        in_A += in_A_step;
+        out += out_step;
+    }
+    free_logicle_cache(cache);
+}
+PyUFuncGenericFunction inv_logicle_func[1] = {&double_inv_logicle};
+static char inv_logicle_types[6] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
 
 static void double_hyperlog(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
 {
@@ -576,8 +671,10 @@ static void double_hyperlog(char **args, const npy_intp *dimensions, const npy_i
     npy_intp in_step = steps[0], in_T_step = steps[1], in_W_step = steps[2], in_M_step = steps[3], in_A_step = steps[4], in_tol_step = steps[5];
     npy_intp out_step = steps[6];
 
+    struct HyperlogParamCache* cache = init_hyperlog_cache();
+
     for (npy_intp i = 0; i < n; ++i) {
-        TO_D(out) = hyperlog(TO_D(in), TO_D(in_T), TO_D(in_W), TO_D(in_M), TO_D(in_A), TO_D(in_tol));
+        TO_D(out) = hyperlog(TO_D(in), TO_D(in_T), TO_D(in_W), TO_D(in_M), TO_D(in_A), TO_D(in_tol), cache);
 
         in += in_step;
         in_T += in_T_step;
@@ -587,9 +684,35 @@ static void double_hyperlog(char **args, const npy_intp *dimensions, const npy_i
         in_tol += in_tol_step;
         out += out_step;
     }
+    free_hyperlog_cache(cache);
 }
 PyUFuncGenericFunction hyperlog_func[1] = {&double_hyperlog};
 static char hyperlog_types[7] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
+
+static void double_inv_hyperlog(char **args, const npy_intp *dimensions, const npy_intp *steps, void *data)
+{
+    npy_intp n = dimensions[0];
+    char *in = args[0], *in_T = args[1], *in_W = args[2], *in_M = args[3], *in_A = args[4];
+    char *out = args[5];
+    npy_intp in_step = steps[0], in_T_step = steps[1], in_W_step = steps[2], in_M_step = steps[3], in_A_step = steps[4];
+    npy_intp out_step = steps[5];
+
+    struct HyperlogParamCache* cache = init_hyperlog_cache();
+
+    for (npy_intp i = 0; i < n; ++i) {
+        TO_D(out) = inverse_hyperlog(TO_D(in), TO_D(in_T), TO_D(in_W), TO_D(in_M), TO_D(in_A), cache);
+
+        in += in_step;
+        in_T += in_T_step;
+        in_W += in_W_step;
+        in_M += in_M_step;
+        in_A += in_A_step;
+        out += out_step;
+    }
+    free_hyperlog_cache(cache);
+}
+PyUFuncGenericFunction inv_hyperlog_func[1] = {&double_inv_hyperlog};
+static char inv_hyperlog_types[6] = {NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE, NPY_DOUBLE};
 
 static PyMethodDef FCSMethods[] = {
     {"loadFCS", loadFCS, METH_VARARGS, "Loads an FCS file"},
@@ -745,14 +868,24 @@ PyInit__libfcs_ext(void)
                                                  "flin_docstring", 0);
         PyDict_SetItemString(d, "flin", flin);
         Py_DECREF(flin);
-        puts("Created flin");
+        PyObject *inv_flin = PyUFunc_FromFuncAndData(inv_flin_func, null_data, inv_flin_types, 1, 3, 1,
+                                                 PyUFunc_None, "inv_flin",
+                                                 "inv_flin_docstring", 0);
+        PyDict_SetItemString(d, "inv_flin", inv_flin);
+        Py_DECREF(inv_flin);
+        puts("Created flin and inv_flin");
         // tunable log
         PyObject *flog = PyUFunc_FromFuncAndData(flog_func, null_data, flog_types, 1, 3, 1,
                                                  PyUFunc_None, "flog",
                                                  "flog_docstring", 0);
         PyDict_SetItemString(d, "flog", flog);
         Py_DECREF(flog);
-        puts("Created flog");
+        PyObject *inv_flog = PyUFunc_FromFuncAndData(inv_flog_func, null_data, inv_flog_types, 1, 3, 1,
+                                                 PyUFunc_None, "inv_flog",
+                                                 "inv_flog_docstring", 0);
+        PyDict_SetItemString(d, "inv_flog", inv_flog);
+        Py_DECREF(inv_flog);
+        puts("Created flog and inv_flog");
 
         // tunable asinh
         PyObject *fasinh = PyUFunc_FromFuncAndData(fasinh_func, null_data, fasinh_types, 1, 4, 1,
@@ -760,7 +893,12 @@ PyInit__libfcs_ext(void)
                                                  "fasinh_docstring", 0);
         PyDict_SetItemString(d, "fasinh", fasinh);
         Py_DECREF(fasinh);
-        puts("Created asinh");
+        PyObject *inv_fasinh = PyUFunc_FromFuncAndData(inv_fasinh_func, null_data, inv_fasinh_types, 1, 4, 1,
+                                                 PyUFunc_None, "inv_fasinh",
+                                                 "inv_fasinh_docstring", 0);
+        PyDict_SetItemString(d, "inv_fasinh", inv_fasinh);
+        Py_DECREF(inv_fasinh);
+        puts("Created fasinh and inv_fasinh");
 
         // logicle
         PyObject *logicle = PyUFunc_FromFuncAndData(logicle_func, null_data, logicle_types, 1, 6, 1,
@@ -768,7 +906,12 @@ PyInit__libfcs_ext(void)
                                                  "logicle_docstring", 0);
         PyDict_SetItemString(d, "logicle", logicle);
         Py_DECREF(logicle);
-        puts("Created logicle");
+        PyObject *inv_logicle = PyUFunc_FromFuncAndData(inv_logicle_func, null_data, inv_logicle_types, 1, 5, 1,
+                                                 PyUFunc_None, "inv_logicle",
+                                                 "inv_logicle_docstring", 0);
+        PyDict_SetItemString(d, "inv_logicle", inv_logicle);
+        Py_DECREF(inv_logicle);
+        puts("Created logicle and inv_logicle");
 
         // logicle
         PyObject *hyperlog = PyUFunc_FromFuncAndData(hyperlog_func, null_data, hyperlog_types, 1, 6, 1,
@@ -776,7 +919,12 @@ PyInit__libfcs_ext(void)
                                                  "hyperlog_docstring", 0);
         PyDict_SetItemString(d, "hyperlog", hyperlog);
         Py_DECREF(hyperlog);
-        puts("Created hyperlog");
+        PyObject *inv_hyperlog = PyUFunc_FromFuncAndData(inv_hyperlog_func, null_data, hyperlog_types, 1, 5, 1,
+                                                 PyUFunc_None, "inv_hyperlog",
+                                                 "inv_hyperlog_docstring", 0);
+        PyDict_SetItemString(d, "inv_hyperlog", inv_hyperlog);
+        Py_DECREF(inv_hyperlog);
+        puts("Created hyperlog and inv_hyperlog");
 
         // polygon gate
         PyObject *polygon_gate = PyUFunc_FromFuncAndDataAndSignature(

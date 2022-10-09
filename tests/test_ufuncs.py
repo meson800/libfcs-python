@@ -13,14 +13,15 @@ def test_flin():
     expected = np.array([
         [-0.1, 0.0, 0.121875],
         [-0.01, 0.081818, 0.1921875],
-        [0, 0.090909, 0.2],
+        [0, 0.0909090909, 0.2],
         [0.01, 0.1, 0.2078125],
-        [0.1, 0.181818, 0.278125],
+        [0.1, 0.1818181818, 0.278125],
         [0.12, 0.2, 0.29375],
         [0.89, 0.9, 0.8953125],
         [1.0, 1.0, 0.98125]
     ])
     np.testing.assert_allclose(_libfcs_ext.flin(x, T, A), expected, rtol=2e-5)
+    np.testing.assert_allclose(_libfcs_ext.inv_flin(expected, T, A), np.repeat(x, 3, 1), rtol=2e-5, atol=1e-8)
 
 def test_flog():
     x = np.array([-1, 0, 0.5, 1, 10, 100, 1000, 1023, 10000, 100000, 262144]).reshape((11,1))
@@ -41,6 +42,7 @@ def test_flog():
     ])
     print(_libfcs_ext.flog(x,T,M))
     np.testing.assert_allclose(_libfcs_ext.flog(x, T, M), expected, rtol=2e-5)
+    np.testing.assert_allclose(_libfcs_ext.inv_flog(expected[2:,:], T, M), np.repeat(x[2:,:], 3, 1), rtol=2e-5)
 
 def test_fasinh():
     x = np.array([-10, -5, -1, 0, 0.3, 1, 3, 10, 100, 1000]).reshape((10,1))
@@ -61,6 +63,7 @@ def test_fasinh():
     ])
     print(_libfcs_ext.fasinh(x,T,M,A))
     np.testing.assert_allclose(_libfcs_ext.fasinh(x, T, M, A), expected, rtol=2e-5)
+    np.testing.assert_allclose(_libfcs_ext.inv_fasinh(expected, T, M, A), np.repeat(x, 3, 1), rtol=2e-5, atol=1e-5)
 
 def test_logicle():
     x = np.array([-10, -5, -1, 0, 0.3, 1, 3, 10, 100, 1000]).reshape((10,1))
@@ -84,6 +87,7 @@ def test_logicle():
     actual = _libfcs_ext.logicle(x,T,W,M,A,tol)
     print(actual)
     np.testing.assert_allclose(actual, expected, rtol=2e-5)
+    np.testing.assert_allclose(_libfcs_ext.inv_logicle(expected, T, W, M, A), np.repeat(x, 3, 1), rtol=2e-5, atol=1e-5)
 
 def test_hyperlog():
     x = np.array([-10, -5, -1, 0, 0.3, 1, 3, 10, 100, 1000]).reshape((10,1))
@@ -107,3 +111,4 @@ def test_hyperlog():
     actual = _libfcs_ext.hyperlog(x,T,W,M,A,tol)
     print(actual)
     np.testing.assert_allclose(actual, expected, atol=1e-6)
+    np.testing.assert_allclose(_libfcs_ext.inv_hyperlog(expected, T, W, M, A), np.repeat(x, 3, 1), rtol=2e-5, atol=1e-5)

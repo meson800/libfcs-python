@@ -6,10 +6,12 @@
 // and a more efficient method to find d.
 #include <math.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include "logicle.h"
 
 #define TAYLOR_LENGTH 16
+#define CACHE_SIZE 5
 
 struct LogicleParams {
     double T;
@@ -26,15 +28,22 @@ struct LogicleParams {
     double taylor[TAYLOR_LENGTH];
 };
 
-#define CACHE_SIZE 5
-static struct LogicleParams coeff_cache[CACHE_SIZE] = {{0}};
-static int next_cache = 0;
+struct LogicleParamCache {
+    struct LogicleParams params[CACHE_SIZE];
+    int next_cache;
+};
 
-//TODO: have the user malloc the cache so we are thread-safe
+struct LogicleParamCache* init_logicle_cache() {
+    return calloc(sizeof(struct LogicleParamCache), 1);
+}
 
-void generate_params(double T, double W, double M, double A, int slot) {
+void free_logicle_cache(struct LogicleParamCache* params) {
+    free(params);
+}
+
+void generate_params(double T, double W, double M, double A, int slot, struct LogicleParamCache* cache) {
     // Generate parameters into a given slot
-    struct LogicleParams* params = coeff_cache + slot;
+    struct LogicleParams* params = cache->params + slot;
     params->T = T;
     params->W = W;
     params->M = M;
@@ -92,26 +101,34 @@ void generate_params(double T, double W, double M, double A, int slot) {
     params->taylor[1] = 0;
 }
 
-double logicle(double val, double T, double W, double M, double A, double tol) {
+static struct LogicleParams* lookup_params(struct LogicleParamCache* cache, int cache_len,
+                                            double T, double W, double M, double A) {
     // Lookup the T/W/M/A info in the cache table.
     int coeff_slot = -1;
     for (int i = 0; i < CACHE_SIZE; ++i) {
         // Start at the last-filled slot
-        int slot = (i + (CACHE_SIZE - 1) + next_cache) % CACHE_SIZE;
-        if (T == coeff_cache[slot].T && W == coeff_cache[slot].W
-            && M == coeff_cache[slot].M && A == coeff_cache[slot].A) {
+        int slot = (i + (CACHE_SIZE - 1) + cache->next_cache) % CACHE_SIZE;
+        if (T == cache->params[slot].T && W == cache->params[slot].W
+            && M == cache->params[slot].M && A == cache->params[slot].A) {
             coeff_slot = slot;
             break;
         }
     }
     // Generate it if it doesn't exist
     if (coeff_slot == -1) {
-        generate_params(T,W,M,A,next_cache);
-        coeff_slot = next_cache;
-        next_cache = (next_cache + 1) % CACHE_SIZE;
+        generate_params(T,W,M,A,cache->next_cache, cache);
+        coeff_slot = cache->next_cache;
+        cache->next_cache = (cache->next_cache + 1) % CACHE_SIZE;
     }
-    struct LogicleParams* params = coeff_cache + coeff_slot;
+    struct LogicleParams* params = cache->params + coeff_slot;
+    return params;
+}
 
+static double logicle_params(double val, double tol, struct LogicleParams* params) {
+    double T = params->T;
+    double W = params->W;
+    double M = params->M;
+    double A = params->A;
     // Solve!
     // Easy case first: if x = 0, the answer is x1
     if (val == 0) {
@@ -166,4 +183,43 @@ double logicle(double val, double T, double W, double M, double A, double tol) {
     }
     // TODO: Add exception? Or NaN?
     return nan("");
+}
+
+static double inverse_logicle_params(double y, struct LogicleParams* params) {
+    double T = params->T;
+    double W = params->W;
+    double M = params->M;
+    double A = params->A;
+
+    // Rescale input value as needed
+    bool negative = y < params->x1;
+    if (negative) {
+        y = 2 * params->x1 - y;
+    }
+
+    double x;
+    if (y < params->taylor_cutoff) {
+        // do the series
+        double centered_y = y - params->x1;
+        // Sum from small Taylor coefficients to big ones
+        x = 0;
+        for (int series_i  = TAYLOR_LENGTH - 1; series_i >= 0; --series_i) {
+            x = (x + params->taylor[series_i]) * centered_y;
+        }
+    } else {
+        x = (params->a * exp(params->b * y) + params->f) - params->c / exp(params->d * y);
+    }
+
+    if (negative) {
+        return -x;
+    }
+    return x;
+}
+
+double logicle(double val, double T, double W, double M, double A, double tol, struct LogicleParamCache* cache) {
+    return logicle_params(val,tol,lookup_params(cache, CACHE_SIZE, T, W, M, A));
+}
+
+double inverse_logicle(double val, double T, double W, double M, double A, struct LogicleParamCache* cache) {
+    return inverse_logicle_params(val,lookup_params(cache, CACHE_SIZE, T, W, M, A));
 }

@@ -5,10 +5,12 @@
 // The implementation has been chiefly modified with a simplified parameter cache
 #include <math.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include "hyperlog.h"
 
 #define TAYLOR_LENGTH 16
+#define CACHE_SIZE 5
 
 struct HyperlogParams {
     double T;
@@ -26,16 +28,24 @@ struct HyperlogParams {
     double taylor[TAYLOR_LENGTH];
 };
 
-#define CACHE_SIZE 5
-static struct HyperlogParams hyperlog_coeff_cache[CACHE_SIZE] = {{0}};
-static int next_cache = 0;
+struct HyperlogParamCache {
+    struct HyperlogParams params[CACHE_SIZE];
+    int next_cache;
+};
 
-//TODO: have the user malloc the cache so we are thread-safe
+struct HyperlogParamCache* init_hyperlog_cache() {
+    return calloc(sizeof(struct HyperlogParamCache), 1);
+}
+
+void free_hyperlog_cache(struct HyperlogParamCache* params) {
+    free(params);
+}
+
 double inverse_hyperlog_param(double y, struct HyperlogParams* params);
 
-void generate_hyperlog_params(double T, double W, double M, double A, int slot) {
+static void generate_hyperlog_params(double T, double W, double M, double A, int slot, struct HyperlogParamCache* cache) {
     // Generate parameters into a given slot
-    struct HyperlogParams* params = hyperlog_coeff_cache + slot;
+    struct HyperlogParams* params = cache->params + slot;
     params->T = T;
     params->W = W;
     params->M = M;
@@ -74,29 +84,29 @@ void generate_hyperlog_params(double T, double W, double M, double A, int slot) 
     params->inverse_x0 = inverse_hyperlog_param(x0, params);
 }
 
-struct HyperlogParams* lookup_params(struct HyperlogParams* cache, int cache_len,
+static struct HyperlogParams* lookup_params(struct HyperlogParamCache* cache, int cache_len,
                                             double T, double W, double M, double A) {
     // Lookup the T/W/M/A info in the cache table.
     int coeff_slot = -1;
     for (int i = 0; i < cache_len; ++i) {
         // Start at the last-filled slot
-        int slot = (i + (cache_len - 1) + next_cache) % cache_len;
-        if (T == hyperlog_coeff_cache[slot].T && W == hyperlog_coeff_cache[slot].W
-            && M == hyperlog_coeff_cache[slot].M && A == hyperlog_coeff_cache[slot].A) {
+        int slot = (i + (cache_len - 1) + cache->next_cache) % cache_len;
+        if (T == cache->params[slot].T && W == cache->params[slot].W
+            && M == cache->params[slot].M && A == cache->params[slot].A) {
             coeff_slot = slot;
             break;
         }
     }
     // Generate it if it doesn't exist
     if (coeff_slot == -1) {
-        generate_hyperlog_params(T,W,M,A,next_cache);
-        coeff_slot = next_cache;
-        next_cache = (next_cache + 1) % cache_len;
+        generate_hyperlog_params(T,W,M,A,cache->next_cache, cache);
+        coeff_slot = cache->next_cache;
+        cache->next_cache = (cache->next_cache + 1) % cache_len;
     }
-    return hyperlog_coeff_cache + coeff_slot;
+    return cache->params + coeff_slot;
 }
 
-double inverse_hyperlog_param(double y, struct HyperlogParams* params) {
+static double inverse_hyperlog_param(double y, struct HyperlogParams* params) {
     // Reflect negative values
     bool is_negative = y < params->x1;
     if (is_negative) {
@@ -121,7 +131,7 @@ double inverse_hyperlog_param(double y, struct HyperlogParams* params) {
     return x;
 }
 
-double hyperlog_param(double val, double tol, struct HyperlogParams* params) {
+static double hyperlog_param(double val, double tol, struct HyperlogParams* params) {
     // Solve!
     // Easy case first: if x = 0, the answer is x1
     if (val == 0) {
@@ -173,10 +183,10 @@ double hyperlog_param(double val, double tol, struct HyperlogParams* params) {
     return nan("");
 }
 
-double hyperlog(double val, double T, double W, double M, double A, double tol) {
-    return hyperlog_param(val,tol,lookup_params(hyperlog_coeff_cache, CACHE_SIZE, T, W, M, A));
+double hyperlog(double val, double T, double W, double M, double A, double tol, struct HyperlogParamCache* cache) {
+    return hyperlog_param(val,tol,lookup_params(cache, CACHE_SIZE, T, W, M, A));
 }
 
-double inverse_hyperlog(double val, double T, double W, double M, double A) {
-    return inverse_hyperlog_param(val,lookup_params(hyperlog_coeff_cache, CACHE_SIZE, T, W, M, A));
+double inverse_hyperlog(double val, double T, double W, double M, double A, struct HyperlogParamCache* cache) {
+    return inverse_hyperlog_param(val,lookup_params(cache, CACHE_SIZE, T, W, M, A));
 }
